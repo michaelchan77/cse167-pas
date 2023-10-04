@@ -29,7 +29,12 @@ Image3 hw_1_1(const std::vector<std::string> &params) {
 
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
-            img(x, y) = Vector3{1, 1, 1};
+            Vector2 curr = Vector2{x + Real(0.5), y + Real(0.5)};
+            if(length(curr - center) < radius) {
+                img(x, y) = color;
+            } else {
+                img(x, y) = Vector3{0.5, 0.5, 0.5};
+            }
         }
     }
     return img;
