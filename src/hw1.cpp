@@ -50,10 +50,20 @@ Image3 hw_1_2(const std::vector<std::string> &params) {
     const CircleScene &scene = hw1_2_scenes[scene_id];
 
     Image3 img(scene.resolution.x, scene.resolution.y);
-
+    // initialize background
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
-            img(x, y) = Vector3{1, 1, 1};
+            img(x, y) = scene.background;
+        }
+    }
+    // rasterization
+    for (Circle c : scene.objects) {
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                Vector2 curr = Vector2{x + Real(0.5), y + Real(0.5)};
+                if(length(curr - c.center) < c.radius)
+                    img(x, y) = c.color;
+            }
         }
     }
     return img;

@@ -1,0 +1,4 @@
+Before optimization:
+hw_1_2_1 took 0.008649 seconds.
+
+After optimization:
