@@ -1,4 +1,6 @@
 Before optimization:
 hw_1_2_1 took 0.008649 seconds.
-
+hw_1_2_2 took 0.002711 seconds.
+hw_1_2_3 took 0.002528 seconds.
+hw_1_2_4 took 0.003868 seconds.
 After optimization:
