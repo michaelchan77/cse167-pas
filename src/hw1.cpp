@@ -58,8 +58,11 @@ Image3 hw_1_2(const std::vector<std::string> &params) {
     }
     // rasterization
     for (Circle c : scene.objects) {
-        for (int y = 0; y < img.height; y++) {
-            for (int x = 0; x < img.width; x++) {
+        // bounding box
+        Vector2 upperLeft = Vector2{std::max(c.center.x - c.radius, Real(0.)), std::max(c.center.y - c.radius, Real(0.))};
+        Vector2 lowerRight = Vector2{std::min(c.center.x + c.radius, Real(img.width)), std::min(c.center.y + c.radius, Real(img.height))};
+        for (int y = upperLeft.y; y < lowerRight.y; y++) {
+            for (int x = upperLeft.x; x < lowerRight.x; x++) {
                 Vector2 curr = Vector2{x + Real(0.5), y + Real(0.5)};
                 if(length(curr - c.center) < c.radius)
                     img(x, y) = c.color;
