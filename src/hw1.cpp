@@ -13,12 +13,10 @@ struct rasterize_shape_op {
     }
     void operator()(const Circle &circle) {
         // bounding box
-        Real minX = std::max(circle.center.x - circle.radius, Real(0.));
-        Real minY = std::max(circle.center.y - circle.radius, Real(0.));
-        Real maxX = std::min(circle.center.x + circle.radius, Real(img.width));
-        Real maxY = std::min(circle.center.y + circle.radius, Real(img.height));
-        Vector2 pMin = Vector2{minX, minY};
-        Vector2 pMax = Vector2{maxX, maxY};
+        Vector2 pMin = Vector2{std::max(circle.center.x - circle.radius, Real(0.)), 
+                        std::max(circle.center.y - circle.radius, Real(0.))};
+        Vector2 pMax = Vector2{std::min(circle.center.x + circle.radius, Real(img.width)),
+                        std::min(circle.center.y + circle.radius, Real(img.height))};
         // rasterize
         for (int y = pMin.y; y < pMax.y; y++) {
             for (int x = pMin.x; x < pMax.x; x++) {
@@ -29,10 +27,48 @@ struct rasterize_shape_op {
         }
     }
     void operator()(const Rectangle &rectangle) {
-        // ADD
+        // bounding box
+        Vector2 pMin = Vector2{std::max(rectangle.p_min.x, Real(0.)), 
+                        std::max(rectangle.p_min.y, Real(0.))};
+        Vector2 pMax = Vector2{std::min(rectangle.p_max.x, Real(img.width)),
+                        std::min(rectangle.p_max.y, Real(img.height))};
+        // rasterize
+        for (int y = pMin.y; y < pMax.y; y++) {
+            for (int x = pMin.x; x < pMax.x; x++) {
+                img(x, y) = rectangle.color;
+            }
+        }
     }
     void operator()(const Triangle &triangle) {
-        // ADD
+        // bounding box
+        Real triangleMinX = std::min({triangle.p0.x, triangle.p1.x, triangle.p2.x});
+        Real triangleMinY = std::min({triangle.p0.y, triangle.p1.y, triangle.p2.y});
+        Real triangleMaxX = std::max({triangle.p0.x, triangle.p1.x, triangle.p2.x});
+        Real triangleMaxY = std::max({triangle.p0.y, triangle.p1.y, triangle.p2.y});
+        Vector2 pMin = Vector2{std::max(triangleMinX, Real(0.)), 
+                        std::max(triangleMinY, Real(0.))};
+        Vector2 pMax = Vector2{std::min(triangleMaxX, Real(img.width)), 
+                        std::min(triangleMaxY, Real(img.height))};
+        // define normal vectors
+        Vector2 edge01 = triangle.p1 - triangle.p0;
+        Vector2 n01 = Vector2{edge01.y, -edge01.x};
+        Vector2 edge12 = triangle.p2 - triangle.p1;
+        Vector2 n12 = Vector2{edge12.y, -edge12.x};
+        Vector2 edge20 = triangle.p0 - triangle.p2;
+        Vector2 n20 = Vector2{edge20.y, -edge20.x};
+        // rasterize
+        for (int y = pMin.y; y < pMax.y; y++) {
+            for (int x = pMin.x; x < pMax.x; x++) {
+                Vector2 q01 = Vector2{x, y} - triangle.p0;
+                Vector2 q12 = Vector2{x, y} - triangle.p1;
+                Vector2 q20 = Vector2{x, y} - triangle.p2;
+                bool isPos = dot(q01,n01) > 0 && dot(q12,n12) > 0 && dot(q20,n20) > 0;
+                bool isNeg = dot(q01,n01) < 0 && dot(q12,n12) < 0 && dot(q20,n20) < 0;
+                if (isPos || isNeg) {
+                    img(x, y) = triangle.color;
+                }
+            }
+        }
     }
 }; 
 
