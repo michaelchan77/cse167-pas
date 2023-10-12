@@ -35,7 +35,10 @@ int main(int argc, char *argv[]) {
         std::cout << "hw_1_4 took " << tick(timer) << " seconds." << std::endl;
         imwrite("hw_1_4.png", img);
     } else if (hw_num == "1_5") {
+        Timer timer;
+        tick(timer);
         Image3 img = hw_1_5(parameters);
+        std::cout << "hw_1_5 took " << tick(timer) << " seconds." << std::endl;
         imwrite("hw_1_5.png", img);
     } else if (hw_num == "1_6") {
         Image3 img = hw_1_6(parameters);

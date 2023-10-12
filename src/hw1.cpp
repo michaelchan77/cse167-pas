@@ -8,8 +8,10 @@ struct rasterize_shape_op {
     // (CSE167 FA23 server, #homework-help channel)
 
     Image3 &img;
+    Real SSAA;
     // constructor
     rasterize_shape_op(Image3 &image) : img(image) {
+        SSAA = 4;
     }
 
     // bounding box helper
@@ -31,29 +33,39 @@ struct rasterize_shape_op {
                                     std::min(pMaxT.y, Real(img.height))};
         return std::pair(min_bound, max_bound);
     }
-    
+
     void operator()(const Circle &circle) {
         // bounding box
         Vector2 pMin = Vector2{circle.center.x-circle.radius, circle.center.y-circle.radius};
         Vector2 pMax = Vector2{circle.center.x+circle.radius, circle.center.y+circle.radius};
         std::pair bounds = boundingBoxTransform(circle, pMin, pMax);
-        Vector2 min_bound = bounds.first;
-        Vector2 max_bound = bounds.second;
+        Vector2 min_bound = bounds.first, max_bound = bounds.second;
         // rasterize
         for (int y = min_bound.y; y < max_bound.y; y++) {
             for (int x = min_bound.x; x < max_bound.x; x++) {
-                Vector3 p = Vector3{x + Real(0.5), y + Real(0.5), Real(1)};
-                Vector3 pT = inverse(circle.transform) * p;
-                if(length(Vector2{pT.x, pT.y} - circle.center) < circle.radius)
-                    img(x, y) = circle.color;
+                Real r = 0, g = 0, b = 0;
+                // ssaa
+                for (Real yi = Real(1)/(2*SSAA); yi < Real(1); yi += Real(1)/SSAA) {
+                    for (Real xi = Real(1)/(2*SSAA); xi < Real(1); xi += Real(1)/SSAA) {
+                        std::cout << "(" << xi << "," << yi << ")" << std::endl;
+                        Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
+                        Vector3 pT = inverse(circle.transform) * p;
+                        if(length(Vector2{pT.x, pT.y} - circle.center) < circle.radius) {
+                            r += circle.color.x, g += circle.color.y, b += circle.color.z;
+                        } else {
+                            Vector3 background = img(p.x,p.y);
+                            r += background.x, g += background.y, b += background.z;
+                        }
+                    }
+                }
+                img(x,y) = Vector3{r/(SSAA*SSAA), g/(SSAA*SSAA), b/(SSAA*SSAA)};
             }
         }
     }
     void operator()(const Rectangle &rectangle) {
         // bounding box
         std::pair bounds = boundingBoxTransform(rectangle, rectangle.p_min, rectangle.p_max);
-        Vector2 min_bound = bounds.first;
-        Vector2 max_bound = bounds.second;
+        Vector2 min_bound = bounds.first, max_bound = bounds.second;
         // rasterize
         for (int y = min_bound.y; y < max_bound.y; y++) {
             for (int x = min_bound.x; x < max_bound.x; x++) {
@@ -72,15 +84,11 @@ struct rasterize_shape_op {
         Vector2 pMax = Vector2{std::max({triangle.p0.x, triangle.p1.x, triangle.p2.x}), 
                                std::max({triangle.p0.y, triangle.p1.y, triangle.p2.y})}; 
         std::pair bounds = boundingBoxTransform(triangle, pMin, pMax);
-        Vector2 min_bound = bounds.first;
-        Vector2 max_bound = bounds.second;
-        // define normal vectors
-        Vector2 e01 = triangle.p1 - triangle.p0;
-        Vector2 n01 = Vector2{e01.y, -e01.x};
-        Vector2 e12 = triangle.p2 - triangle.p1;
-        Vector2 n12 = Vector2{e12.y, -e12.x};
-        Vector2 e20 = triangle.p0 - triangle.p2;
-        Vector2 n20 = Vector2{e20.y, -e20.x};
+        Vector2 min_bound = bounds.first, max_bound = bounds.second;
+        // edges and normals
+        Vector2 e01 = triangle.p1 - triangle.p0, n01 = Vector2{e01.y, -e01.x};
+        Vector2 e12 = triangle.p2 - triangle.p1, n12 = Vector2{e12.y, -e12.x};
+        Vector2 e20 = triangle.p0 - triangle.p2, n20 = Vector2{e20.y, -e20.x};
         // rasterize
         for (int y = min_bound.y; y < max_bound.y; y++) {
             for (int x = min_bound.x; x < max_bound.x; x++) {
@@ -218,10 +226,15 @@ Image3 hw_1_5(const std::vector<std::string> &params) {
 
     Image3 img(scene.resolution.x, scene.resolution.y);
 
+    // initialize background
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
-            img(x, y) = Vector3{1, 1, 1};
+            img(x, y) = scene.background;
         }
+    }
+    // rasterize
+    for (const auto &shape : scene.shapes) {
+        std::visit(rasterize_shape_op(img), shape);
     }
     return img;
 }
