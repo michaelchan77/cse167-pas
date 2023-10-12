@@ -12,27 +12,27 @@ struct rasterize_shape_op {
     rasterize_shape_op(Image3 &image) : img(image) {
     }
     void operator()(const Circle &circle) {
-        // // bounding box
-        // Vector2 pMin = Vector2{std::max(circle.center.x - circle.radius, Real(0.)), 
-        //                 std::max(circle.center.y - circle.radius, Real(0.))};
-        // Vector2 pMax = Vector2{std::min(circle.center.x + circle.radius, Real(img.width)),
-        //                 std::min(circle.center.y + circle.radius, Real(img.height))};
-// -----
         // bounding box
         Vector2 pMin = Vector2{circle.center.x-circle.radius, circle.center.y-circle.radius};
         Vector2 pMax = Vector2{circle.center.x+circle.radius, circle.center.y+circle.radius};
-        // transform bounding box
-        Vector3 pMinT = circle.transform*Vector3{pMin.x, pMin.y, Real(1)};
-        Vector3 pMaxT = circle.transform*Vector3{pMax.x, pMax.y, Real(1)};
-        // restrict bounding box to screen (TODO: )
+        // transform bounding box coordinates
+        Vector3 upLeftT = circle.transform*Vector3{pMin.x, pMin.y, Real(1)};
+        Vector3 upRightT = circle.transform*Vector3{pMax.x, pMin.y, Real(1)};
+        Vector3 lowLeftT = circle.transform*Vector3{pMin.x, pMax.y, Real(1)};
+        Vector3 lowRightT = circle.transform*Vector3{pMax.x, pMax.y, Real(1)};
+        // new bounding box
+        Vector2 pMinT = Vector2{std::min({upLeftT.x,upRightT.x,lowLeftT.x,lowRightT.x}),
+                                  std::min({upLeftT.y,upRightT.y,lowLeftT.y,lowRightT.y})};
+        Vector2 pMaxT = Vector2{std::max({upLeftT.x,upRightT.x,lowLeftT.x,lowRightT.x}),
+                                  std::max({upLeftT.y,upRightT.y,lowLeftT.y,lowRightT.y})};                          
+        // restrict to screen
         Vector2 min_bound = Vector2{std::max(pMinT.x, Real(0.)), 
-                            std::max(pMinT.y, Real(0.))};
+                                    std::max(pMinT.y, Real(0.))};
         Vector2 max_bound = Vector2{std::min(pMaxT.x, Real(img.width)),
-                            std::min(pMaxT.y, Real(img.height))};
-// -----
+                                    std::min(pMaxT.y, Real(img.height))};
         // rasterize
-        for (int y = 0 /*min_bound.y*/; y < img.height /*max_bound.y*/; y++) {
-            for (int x = 0 /*min_bound.x*/; x < img.width /*max_bound.x*/; x++) {
+        for (int y = min_bound.y; y < max_bound.y; y++) {
+            for (int x = min_bound.x; x < max_bound.x; x++) {
                 Vector3 p = Vector3{x + Real(0.5), y + Real(0.5), Real(1)};
                 Vector3 pT = inverse(circle.transform) * p;
                 if(length(Vector2{pT.x, pT.y} - circle.center) < circle.radius)
@@ -41,15 +41,29 @@ struct rasterize_shape_op {
         }
     }
     void operator()(const Rectangle &rectangle) {
-        // bounding box
-        Vector2 pMin = Vector2{std::max(rectangle.p_min.x, Real(0.)), 
-                        std::max(rectangle.p_min.y, Real(0.))};
-        Vector2 pMax = Vector2{std::min(rectangle.p_max.x, Real(img.width)),
-                        std::min(rectangle.p_max.y, Real(img.height))};
+        // transform bounding box coordinates
+        Vector3 upLeftT = rectangle.transform*Vector3{rectangle.p_min.x, rectangle.p_min.y, Real(1)};
+        Vector3 upRightT = rectangle.transform*Vector3{rectangle.p_max.x, rectangle.p_min.y, Real(1)};
+        Vector3 lowLeftT = rectangle.transform*Vector3{rectangle.p_min.x, rectangle.p_max.y, Real(1)};
+        Vector3 lowRightT = rectangle.transform*Vector3{rectangle.p_max.x, rectangle.p_max.y, Real(1)};
+        // new bounding box
+        Vector2 pMinT = Vector2{std::min({upLeftT.x,upRightT.x,lowLeftT.x,lowRightT.x}),
+                                  std::min({upLeftT.y,upRightT.y,lowLeftT.y,lowRightT.y})};
+        Vector2 pMaxT = Vector2{std::max({upLeftT.x,upRightT.x,lowLeftT.x,lowRightT.x}),
+                                  std::max({upLeftT.y,upRightT.y,lowLeftT.y,lowRightT.y})};                          
+        // restrict to screen
+        Vector2 min_bound = Vector2{std::max(pMinT.x, Real(0.)), 
+                                    std::max(pMinT.y, Real(0.))};
+        Vector2 max_bound = Vector2{std::min(pMaxT.x, Real(img.width)),
+                                    std::min(pMaxT.y, Real(img.height))};
         // rasterize
-        for (int y = pMin.y; y < pMax.y; y++) {
-            for (int x = pMin.x; x < pMax.x; x++) {
-                img(x, y) = rectangle.color;
+        for (int y = min_bound.y; y < max_bound.y; y++) {
+            for (int x = min_bound.x; x < max_bound.x; x++) {
+                Vector3 p = Vector3{x + Real(0.5), y + Real(0.5), Real(1)};
+                Vector3 pT = inverse(rectangle.transform) * p;
+                if (pT.x > rectangle.p_min.x && pT.x < rectangle.p_max.x &&
+                    pT.y > rectangle.p_min.y && pT.y < rectangle.p_max.y)
+                    img(x, y) = rectangle.color;
             }
         }
     }
