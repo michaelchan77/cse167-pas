@@ -89,25 +89,41 @@ Matrix3x3 parse_transformation(const json &node) {
                 (*scale_it)[0], (*scale_it)[1]
             };
             // TODO (HW1.4): construct a scale matrix and composite with F
-            UNUSED(scale); // silence warning, feel free to remove it
+            Matrix3x3 S = Matrix3x3::identity();
+            S(0,0) = scale.x;
+            S(1,1) = scale.y;
+            F = S*F;
         } else if (auto rotate_it = it->find("rotate"); rotate_it != it->end()) {
             Real angle = *rotate_it;
             // TODO (HW1.4): construct a rotation matrix and composite with F
-            UNUSED(angle); // silence warning, feel free to remove it
+            Real angleRad = angle*(M_PI/Real(180.));
+            Matrix3x3 R = Matrix3x3::identity();
+            R(0,0) = std::cos(angleRad);
+            R(0,1) = -std::sin(angleRad);
+            R(1,0) = std::sin(angleRad);
+            R(1,1) = std::cos(angleRad);
+            F = R*F;
         } else if (auto translate_it = it->find("translate"); translate_it != it->end()) {
             Vector2 translate = Vector2{
                 (*translate_it)[0], (*translate_it)[1]
             };
             // TODO (HW1.4): construct a translation matrix and composite with F
-            UNUSED(translate); // silence warning, feel free to remove it
+            Matrix3x3 T = Matrix3x3::identity();
+            T(0,2) = translate.x;
+            T(1,2) = translate.y;
+            F = T*F;
         } else if (auto shearx_it = it->find("shear_x"); shearx_it != it->end()) {
             Real shear_x = *shearx_it;
             // TODO (HW1.4): construct a shear matrix (x direction) and composite with F
-            UNUSED(shear_x); // silence warning, feel free to remove it
+            Matrix3x3 SHx = Matrix3x3::identity();
+            SHx(0,1) = shear_x;
+            F = SHx*F;
         } else if (auto sheary_it = it->find("shear_y"); sheary_it != it->end()) {
             Real shear_y = *sheary_it;
             // TODO (HW1.4): construct a shear matrix (y direction) and composite with F
-            UNUSED(shear_y); // silence warning, feel free to remove it
+            Matrix3x3 SHy = Matrix3x3::identity();
+            SHy(1,0) = shear_y;
+            F = SHy*F;
         }
     }
     return F;

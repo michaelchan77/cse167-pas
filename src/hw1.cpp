@@ -12,16 +12,30 @@ struct rasterize_shape_op {
     rasterize_shape_op(Image3 &image) : img(image) {
     }
     void operator()(const Circle &circle) {
+        // // bounding box
+        // Vector2 pMin = Vector2{std::max(circle.center.x - circle.radius, Real(0.)), 
+        //                 std::max(circle.center.y - circle.radius, Real(0.))};
+        // Vector2 pMax = Vector2{std::min(circle.center.x + circle.radius, Real(img.width)),
+        //                 std::min(circle.center.y + circle.radius, Real(img.height))};
+// -----
         // bounding box
-        Vector2 pMin = Vector2{std::max(circle.center.x - circle.radius, Real(0.)), 
-                        std::max(circle.center.y - circle.radius, Real(0.))};
-        Vector2 pMax = Vector2{std::min(circle.center.x + circle.radius, Real(img.width)),
-                        std::min(circle.center.y + circle.radius, Real(img.height))};
+        Vector2 pMin = Vector2{circle.center.x-circle.radius, circle.center.y-circle.radius};
+        Vector2 pMax = Vector2{circle.center.x+circle.radius, circle.center.y+circle.radius};
+        // transform bounding box
+        Vector3 pMinT = circle.transform*Vector3{pMin.x, pMin.y, Real(1)};
+        Vector3 pMaxT = circle.transform*Vector3{pMax.x, pMax.y, Real(1)};
+        // restrict bounding box to screen (TODO: )
+        Vector2 min_bound = Vector2{std::max(pMinT.x, Real(0.)), 
+                            std::max(pMinT.y, Real(0.))};
+        Vector2 max_bound = Vector2{std::min(pMaxT.x, Real(img.width)),
+                            std::min(pMaxT.y, Real(img.height))};
+// -----
         // rasterize
-        for (int y = pMin.y; y < pMax.y; y++) {
-            for (int x = pMin.x; x < pMax.x; x++) {
-                Vector2 p = Vector2{x + Real(0.5), y + Real(0.5)};
-                if(length(p - circle.center) < circle.radius)
+        for (int y = 0 /*min_bound.y*/; y < img.height /*max_bound.y*/; y++) {
+            for (int x = 0 /*min_bound.x*/; x < img.width /*max_bound.x*/; x++) {
+                Vector3 p = Vector3{x + Real(0.5), y + Real(0.5), Real(1)};
+                Vector3 pT = inverse(circle.transform) * p;
+                if(length(Vector2{pT.x, pT.y} - circle.center) < circle.radius)
                     img(x, y) = circle.color;
             }
         }
@@ -167,10 +181,15 @@ Image3 hw_1_4(const std::vector<std::string> &params) {
 
     Image3 img(scene.resolution.x, scene.resolution.y);
 
+    // initialize background
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
-            img(x, y) = Vector3{1, 1, 1};
+            img(x, y) = scene.background;
         }
+    }
+    // rasterize
+    for (const auto &shape : scene.shapes) {
+        std::visit(rasterize_shape_op(img), shape);
     }
     return img;
 }
