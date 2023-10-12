@@ -68,28 +68,41 @@ struct rasterize_shape_op {
         }
     }
     void operator()(const Triangle &triangle) {
-        // bounding box
-        Real triangleMinX = std::min({triangle.p0.x, triangle.p1.x, triangle.p2.x});
-        Real triangleMinY = std::min({triangle.p0.y, triangle.p1.y, triangle.p2.y});
-        Real triangleMaxX = std::max({triangle.p0.x, triangle.p1.x, triangle.p2.x});
-        Real triangleMaxY = std::max({triangle.p0.y, triangle.p1.y, triangle.p2.y});
-        Vector2 pMin = Vector2{std::max(triangleMinX, Real(0.)), 
-                        std::max(triangleMinY, Real(0.))};
-        Vector2 pMax = Vector2{std::min(triangleMaxX, Real(img.width)), 
-                        std::min(triangleMaxY, Real(img.height))};
         // define normal vectors
-        Vector2 edge01 = triangle.p1 - triangle.p0;
-        Vector2 n01 = Vector2{edge01.y, -edge01.x};
-        Vector2 edge12 = triangle.p2 - triangle.p1;
-        Vector2 n12 = Vector2{edge12.y, -edge12.x};
-        Vector2 edge20 = triangle.p0 - triangle.p2;
-        Vector2 n20 = Vector2{edge20.y, -edge20.x};
+        Vector2 e01 = triangle.p1 - triangle.p0;
+        Vector2 n01 = Vector2{e01.y, -e01.x};
+        Vector2 e12 = triangle.p2 - triangle.p1;
+        Vector2 n12 = Vector2{e12.y, -e12.x};
+        Vector2 e20 = triangle.p0 - triangle.p2;
+        Vector2 n20 = Vector2{e20.y, -e20.x};
+        // bounding box
+        Vector2 pMin = Vector2{std::min({triangle.p0.x, triangle.p1.x, triangle.p2.x}), 
+                               std::min({triangle.p0.y, triangle.p1.y, triangle.p2.y})};
+        Vector2 pMax = Vector2{std::max({triangle.p0.x, triangle.p1.x, triangle.p2.x}), 
+                               std::max({triangle.p0.y, triangle.p1.y, triangle.p2.y})}; 
+        // transform bounding box coordinates
+        Vector3 upLeftT = triangle.transform*Vector3{pMin.x, pMin.y, Real(1)};
+        Vector3 upRightT = triangle.transform*Vector3{pMax.x, pMin.y, Real(1)};
+        Vector3 lowLeftT = triangle.transform*Vector3{pMin.x, pMax.y, Real(1)};
+        Vector3 lowRightT = triangle.transform*Vector3{pMax.x, pMax.y, Real(1)};
+        // new bounding box
+        Vector2 pMinT = Vector2{std::min({upLeftT.x,upRightT.x,lowLeftT.x,lowRightT.x}),
+                                  std::min({upLeftT.y,upRightT.y,lowLeftT.y,lowRightT.y})};
+        Vector2 pMaxT = Vector2{std::max({upLeftT.x,upRightT.x,lowLeftT.x,lowRightT.x}),
+                                  std::max({upLeftT.y,upRightT.y,lowLeftT.y,lowRightT.y})};                          
+        // restrict to screen
+        Vector2 min_bound = Vector2{std::max(pMinT.x, Real(0.)), 
+                                    std::max(pMinT.y, Real(0.))};
+        Vector2 max_bound = Vector2{std::min(pMaxT.x, Real(img.width)),
+                                    std::min(pMaxT.y, Real(img.height))};
         // rasterize
-        for (int y = pMin.y; y < pMax.y; y++) {
-            for (int x = pMin.x; x < pMax.x; x++) {
-                Vector2 q01 = Vector2{x, y} - triangle.p0;
-                Vector2 q12 = Vector2{x, y} - triangle.p1;
-                Vector2 q20 = Vector2{x, y} - triangle.p2;
+        for (int y = min_bound.y; y < max_bound.y; y++) {
+            for (int x = min_bound.x; x < max_bound.x; x++) {
+                Vector3 p = Vector3{x + Real(0.5), y + Real(0.5), Real(1)};
+                Vector3 pT = inverse(triangle.transform) * p;
+                Vector2 q01 = Vector2{pT.x, pT.y} - triangle.p0;
+                Vector2 q12 = Vector2{pT.x, pT.y} - triangle.p1;
+                Vector2 q20 = Vector2{pT.x, pT.y} - triangle.p2;
                 bool isPos = dot(q01,n01) > 0 && dot(q12,n12) > 0 && dot(q20,n20) > 0;
                 bool isNeg = dot(q01,n01) < 0 && dot(q12,n12) < 0 && dot(q20,n20) < 0;
                 if (isPos || isNeg) {
