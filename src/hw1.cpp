@@ -3,29 +3,46 @@
 
 using namespace hw1;
 
-struct rasterize_shape_op {
-    // Credit: Function skeleton from @bwu on Discord 
-    // (CSE167 FA23 server, #homework-help channel)
+struct check_shape_op {
+    Vector2 point;
+    check_shape_op(Vector2 p) : point(p) {}
+    bool operator()(const Circle &circle) {
+        return length(point - circle.center) < circle.radius;
+    }
+    bool operator()(const Rectangle &rectangle) {
+        return point.x > rectangle.p_min.x && point.x < rectangle.p_max.x &&
+               point.y > rectangle.p_min.y && point.y < rectangle.p_max.y;
+    }
+    bool operator()(const Triangle &triangle) {
+        // Vector2 q01 = point - triangle.p0;
+        // Vector2 q12 = point - triangle.p1;
+        // Vector2 q20 = point - triangle.p2;
+        // bool isPos = dot(q01,n01) > 0 && dot(q12,n12) > 0 && dot(q20,n20) > 0;
+        // bool isNeg = dot(q01,n01) < 0 && dot(q12,n12) < 0 && dot(q20,n20) < 0;
+        // return isPos || isNeg;
+        return false;
+    }
+};
 
+struct rasterize_shape_op {
     Image3 &img;
     Real SSAA;
     // constructor
     rasterize_shape_op(Image3 &image) : img(image) {
         SSAA = 4;
     }
-
     // bounding box helper
-    std::pair<Vector2,Vector2> boundingBoxTransform(const Shape &shape, Vector2 pMin, Vector2 pMax) {
+    std::pair<Vector2,Vector2> bBoxTransform(const Shape &shape, Vector2 pMin, Vector2 pMax) {
         // transform coordinates
-        Vector3 upLeftT = get_transform(shape)*Vector3{pMin.x, pMin.y, Real(1)};
-        Vector3 upRightT = get_transform(shape)*Vector3{pMax.x, pMin.y, Real(1)};
-        Vector3 lowLeftT = get_transform(shape)*Vector3{pMin.x, pMax.y, Real(1)};
-        Vector3 lowRightT = get_transform(shape)*Vector3{pMax.x, pMax.y, Real(1)};
+        Vector3 UL = get_transform(shape) * Vector3{pMin.x, pMin.y, Real(1)};
+        Vector3 UR = get_transform(shape) * Vector3{pMax.x, pMin.y, Real(1)};
+        Vector3 LL = get_transform(shape) * Vector3{pMin.x, pMax.y, Real(1)};
+        Vector3 LR = get_transform(shape) * Vector3{pMax.x, pMax.y, Real(1)};
         // new bounding box
-        Vector2 pMinT = Vector2{std::min({upLeftT.x,upRightT.x,lowLeftT.x,lowRightT.x}),
-                                  std::min({upLeftT.y,upRightT.y,lowLeftT.y,lowRightT.y})};
-        Vector2 pMaxT = Vector2{std::max({upLeftT.x,upRightT.x,lowLeftT.x,lowRightT.x}),
-                                  std::max({upLeftT.y,upRightT.y,lowLeftT.y,lowRightT.y})};                          
+        Vector2 pMinT = Vector2{std::min({UL.x, UR.x, LL.x, LR.x}),
+                                std::min({UL.y, UR.y, LL.y, LR.y})};
+        Vector2 pMaxT = Vector2{std::max({UL.x, UR.x, LL.x, LR.x}),
+                                std::max({UL.y, UR.y, LL.y, LR.y})};                          
         // restrict to screen
         Vector2 min_bound = Vector2{std::max(pMinT.x, Real(0)), 
                                     std::max(pMinT.y, Real(0))};
@@ -33,28 +50,56 @@ struct rasterize_shape_op {
                                     std::min(pMaxT.y, Real(img.height))};
         return std::pair(min_bound, max_bound);
     }
-
+    // antialiasing helper
+    Vector3 getAvgColor(const Shape &shape, int x, int y) {
+        Real r = 0, g = 0, b = 0;
+        Real subPixCenter = Real(1)/(2*SSAA);
+        Real nextSubPix = 2*subPixCenter;
+        // loop thru subpixels
+        for (Real yi = subPixCenter; yi < Real(1); yi += nextSubPix) {
+            for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
+                // convert subpixel to object space
+                Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
+                Vector3 pT = get_transform(shape) * p;
+                if(std::visit(check_shape_op(Vector2{pT.x, pT.y}), shape)) {
+                    r += get_color(shape).x;
+                    g += get_color(shape).y;
+                    b += get_color(shape).z;
+                } else {
+                    Vector3 background = img(p.x,p.y);
+                    r += background.x, g += background.y, b += background.z;
+                }
+            }
+        }
+        return Vector3{r/(SSAA*SSAA), g/(SSAA*SSAA), b/(SSAA*SSAA)};
+    }
     void operator()(const Circle &circle) {
         // bounding box
-        Vector2 pMin = Vector2{circle.center.x-circle.radius, circle.center.y-circle.radius};
-        Vector2 pMax = Vector2{circle.center.x+circle.radius, circle.center.y+circle.radius};
-        std::pair bounds = boundingBoxTransform(circle, pMin, pMax);
+        Vector2 pMin = Vector2{circle.center.x - circle.radius, 
+                               circle.center.y - circle.radius};
+        Vector2 pMax = Vector2{circle.center.x + circle.radius, 
+                               circle.center.y + circle.radius};
+        std::pair bounds = bBoxTransform(circle, pMin, pMax);
         Vector2 min_bound = bounds.first, max_bound = bounds.second;
         // rasterize
         for (int y = min_bound.y; y < max_bound.y; y++) {
             for (int x = min_bound.x; x < max_bound.x; x++) {
+                // SSAA
                 Real r = 0, g = 0, b = 0;
-                // ssaa
-                for (Real yi = Real(1)/(2*SSAA); yi < Real(1); yi += Real(1)/SSAA) {
-                    for (Real xi = Real(1)/(2*SSAA); xi < Real(1); xi += Real(1)/SSAA) {
-                        std::cout << "(" << xi << "," << yi << ")" << std::endl;
+                Real subPixCenter = Real(1)/(2*SSAA), nextSubPix = 2*subPixCenter;
+                for (Real yi = subPixCenter; yi < Real(1); yi += nextSubPix) {
+                    for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
                         Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
                         Vector3 pT = inverse(circle.transform) * p;
                         if(length(Vector2{pT.x, pT.y} - circle.center) < circle.radius) {
-                            r += circle.color.x, g += circle.color.y, b += circle.color.z;
+                            r += circle.color.x;
+                            g += circle.color.y;
+                            b += circle.color.z;
                         } else {
                             Vector3 background = img(p.x,p.y);
-                            r += background.x, g += background.y, b += background.z;
+                            r += background.x;
+                            g += background.y;
+                            b += background.z;
                         }
                     }
                 }
@@ -64,16 +109,32 @@ struct rasterize_shape_op {
     }
     void operator()(const Rectangle &rectangle) {
         // bounding box
-        std::pair bounds = boundingBoxTransform(rectangle, rectangle.p_min, rectangle.p_max);
+        std::pair bounds = bBoxTransform(rectangle, rectangle.p_min, rectangle.p_max);
         Vector2 min_bound = bounds.first, max_bound = bounds.second;
         // rasterize
         for (int y = min_bound.y; y < max_bound.y; y++) {
             for (int x = min_bound.x; x < max_bound.x; x++) {
-                Vector3 p = Vector3{x + Real(0.5), y + Real(0.5), Real(1)};
-                Vector3 pT = inverse(rectangle.transform) * p;
-                if (pT.x > rectangle.p_min.x && pT.x < rectangle.p_max.x &&
-                    pT.y > rectangle.p_min.y && pT.y < rectangle.p_max.y)
-                    img(x, y) = rectangle.color;
+                // SSAA
+                Real r = 0, g = 0, b = 0;
+                Real subPixCenter = Real(1)/(2*SSAA), nextSubPix = 2*subPixCenter;
+                for (Real yi = subPixCenter; yi < Real(1); yi += nextSubPix) {
+                    for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
+                        Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
+                        Vector3 pT = inverse(rectangle.transform) * p;
+                        if (pT.x > rectangle.p_min.x && pT.x < rectangle.p_max.x &&
+                            pT.y > rectangle.p_min.y && pT.y < rectangle.p_max.y) {
+                            r += rectangle.color.x;
+                            g += rectangle.color.y;
+                            b += rectangle.color.z;
+                        } else {
+                            Vector3 background = img(p.x,p.y);
+                            r += background.x;
+                            g += background.y;
+                            b += background.z;
+                        }
+                    }
+                }
+                img(x,y) = Vector3{r/(SSAA*SSAA), g/(SSAA*SSAA), b/(SSAA*SSAA)};
             }
         }
     }
@@ -83,7 +144,7 @@ struct rasterize_shape_op {
                                std::min({triangle.p0.y, triangle.p1.y, triangle.p2.y})};
         Vector2 pMax = Vector2{std::max({triangle.p0.x, triangle.p1.x, triangle.p2.x}), 
                                std::max({triangle.p0.y, triangle.p1.y, triangle.p2.y})}; 
-        std::pair bounds = boundingBoxTransform(triangle, pMin, pMax);
+        std::pair bounds = bBoxTransform(triangle, pMin, pMax);
         Vector2 min_bound = bounds.first, max_bound = bounds.second;
         // edges and normals
         Vector2 e01 = triangle.p1 - triangle.p0, n01 = Vector2{e01.y, -e01.x};
@@ -92,16 +153,31 @@ struct rasterize_shape_op {
         // rasterize
         for (int y = min_bound.y; y < max_bound.y; y++) {
             for (int x = min_bound.x; x < max_bound.x; x++) {
-                Vector3 p = Vector3{x + Real(0.5), y + Real(0.5), Real(1)};
-                Vector3 pT = inverse(triangle.transform) * p;
-                Vector2 q01 = Vector2{pT.x, pT.y} - triangle.p0;
-                Vector2 q12 = Vector2{pT.x, pT.y} - triangle.p1;
-                Vector2 q20 = Vector2{pT.x, pT.y} - triangle.p2;
-                bool isPos = dot(q01,n01) > 0 && dot(q12,n12) > 0 && dot(q20,n20) > 0;
-                bool isNeg = dot(q01,n01) < 0 && dot(q12,n12) < 0 && dot(q20,n20) < 0;
-                if (isPos || isNeg) {
-                    img(x, y) = triangle.color;
+                // SSAA
+                Real r = 0, g = 0, b = 0;
+                Real subPixCenter = Real(1)/(2*SSAA), nextSubPix = 2*subPixCenter;
+                for (Real yi = subPixCenter; yi < Real(1); yi += nextSubPix) {
+                    for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
+                        Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
+                        Vector3 pT = inverse(triangle.transform) * p;
+                        Vector2 q01 = Vector2{pT.x, pT.y} - triangle.p0;
+                        Vector2 q12 = Vector2{pT.x, pT.y} - triangle.p1;
+                        Vector2 q20 = Vector2{pT.x, pT.y} - triangle.p2;
+                        bool isPos = dot(q01,n01) > 0 && dot(q12,n12) > 0 && dot(q20,n20) > 0;
+                        bool isNeg = dot(q01,n01) < 0 && dot(q12,n12) < 0 && dot(q20,n20) < 0;
+                        if (isPos || isNeg) {
+                            r += triangle.color.x;
+                            g += triangle.color.y;
+                            b += triangle.color.z;
+                        } else {
+                            Vector3 background = img(p.x,p.y);
+                            r += background.x;
+                            g += background.y;
+                            b += background.z;
+                        }
+                    }
                 }
+                img(x,y) = Vector3{r/(SSAA*SSAA), g/(SSAA*SSAA), b/(SSAA*SSAA)};
             }
         }
     }
