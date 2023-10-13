@@ -216,6 +216,7 @@ Scene parse_scene(const fs::path &filename) {
             Vector2 p0{0, 0};
             Vector2 p1{1, 0};
             Vector2 p2{0, 1};
+            Vector2 n01{}, n12{}, n20{}; // add normal vectors
             Vector3 color{0, 0, 0};
             Real alpha = 1;
 
@@ -248,7 +249,9 @@ Scene parse_scene(const fs::path &filename) {
                 alpha = (*alpha_it);
             }
             Matrix3x3 transform = parse_transformation(*it);
-            scene.shapes.push_back(Triangle{p0, p1, p2, color, alpha, transform});
+            scene.shapes.push_back(Triangle{p0, p1, p2, 
+                                            n01, n12, n20, // add normal vectors
+                                            color, alpha, transform});
         }
     }
 
@@ -274,6 +277,9 @@ std::ostream& operator<<(std::ostream &os, const Shape &shape) {
               "p0=" << triangle->p0 << ", " <<
               "p1=" << triangle->p1 << ", " <<
               "p2=" << triangle->p2 << ", " <<
+              "n01=" << triangle->n01 << ", " << // add normal vectors
+              "n12=" << triangle->n12 << ", " << // add normal vectors
+              "n20=" << triangle->n20 << ", " << // add normal vectors
               "color=" << triangle->color << ", " <<
               "transform=" << std::endl << triangle->transform << "]";
     } else {

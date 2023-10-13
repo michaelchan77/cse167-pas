@@ -33,6 +33,7 @@ struct Rectangle {
 
 struct Triangle {
     Vector2 p0, p1, p2;
+    Vector2 n01, n12, n20; // add normal vectors
     Vector3 color;
     Real alpha;
     Matrix3x3 transform;
@@ -40,6 +41,9 @@ struct Triangle {
 
 using Shape = std::variant<Circle, Rectangle, Triangle>;
 
+inline Real get_alpha(const Shape &shape) {
+    return std::visit([](const auto &s) { return s.alpha; }, shape);
+}
 inline void set_color(Shape &shape, const Vector3 &color) {
     std::visit([&](auto &s) { s.color = color; }, shape);
 }

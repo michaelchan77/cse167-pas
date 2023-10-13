@@ -3,13 +3,23 @@
 
 using namespace hw1;
 
+struct check_shape_op {
+    Real x, y;
+    bool operator()(const Circle &circle) const {
+        return length(Vector2{x, y} - circle.center) < circle.radius;
+    }
+    bool operator()(const Rectangle &rectangle) const {
+        return x > rectangle.p_min.x && x < rectangle.p_max.x &&
+               y > rectangle.p_min.y && y < rectangle.p_max.y;
+    }
+    bool operator()(const Triangle &triangle) const { return false; }
+};
+
 struct rasterize_shape_op {
     Image3 &img;
-    Real SSAA;
+    const Real SSAA = 4;
     // constructor
-    rasterize_shape_op(Image3 &image) : img(image) {
-        SSAA = 4;
-    }
+    rasterize_shape_op(Image3 &image) : img(image) {}
     // bounding box helper
     std::pair<Vector2,Vector2> bBoxTransform(const Shape &shape, Vector2 pMin, Vector2 pMax) {
         // transform coordinates
@@ -29,65 +39,51 @@ struct rasterize_shape_op {
                                     std::min(pMaxT.y, Real(img.height))};
         return std::pair(min_bound, max_bound);
     }
+    // antialiasing helper
+    Vector3 getAvgColor(const Shape &shape, int x, int y) {
+        Real r = 0, g = 0, b = 0;
+        Real subPixCenter = Real(1)/(2 * SSAA), nextSubPix = 2 * subPixCenter;
+        for (Real yi = subPixCenter; yi < Real(1); yi += nextSubPix) {
+            for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
+                Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
+                Vector3 pT = inverse(get_transform(shape)) * p;
+                Vector3 background = img(p.x,p.y);
+                if(std::visit(check_shape_op{pT.x,pT.y},shape)) {
+                    // alpha blending
+                    Vector3 color = get_alpha(shape) * get_color(shape) + 
+                                    (1 - get_alpha(shape)) * background;
+                    r += color.x, g += color.y, b += color.z;
+                } else {
+                    r += background.x, g += background.y, b += background.z;
+                }
+            }
+        }
+        return Vector3{r/(SSAA*SSAA), g/(SSAA*SSAA), b/(SSAA*SSAA)};
+    }
+    // rasterize circle
     void operator()(const Circle &circle) {
-        // bounding box
         Vector2 pMin = Vector2{circle.center.x - circle.radius, 
                                circle.center.y - circle.radius};
         Vector2 pMax = Vector2{circle.center.x + circle.radius, 
                                circle.center.y + circle.radius};
         std::pair bounds = bBoxTransform(circle, pMin, pMax);
         Vector2 min_bound = bounds.first, max_bound = bounds.second;
-        // rasterize
+
         for (int y = min_bound.y; y < max_bound.y; y++) {
             for (int x = min_bound.x; x < max_bound.x; x++) {
-                // SSAA
-                Real r = 0, g = 0, b = 0;
-                Real subPixCenter = Real(1)/(2*SSAA), nextSubPix = 2*subPixCenter;
-                for (Real yi = subPixCenter; yi < Real(1); yi += nextSubPix) {
-                    for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
-                        Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
-                        Vector3 pT = inverse(circle.transform) * p;
-                        Vector3 background = img(p.x,p.y);
-                        if(length(Vector2{pT.x, pT.y} - circle.center) < circle.radius) {
-                            // alpha blending
-                            Vector3 color = circle.alpha*circle.color + (1-circle.alpha)*background;
-                            r += color.x, g += color.y, b += color.z;
-                        } else {
-                            r += background.x, g += background.y, b += background.z;
-                        }
-                    }
-                }
-                img(x,y) = Vector3{r/(SSAA*SSAA), g/(SSAA*SSAA), b/(SSAA*SSAA)};
+                img(x,y) = getAvgColor(circle, x, y);
             }
         }
     }
+    // rasterize rectangle
     void operator()(const Rectangle &rectangle) {
         // bounding box
         std::pair bounds = bBoxTransform(rectangle, rectangle.p_min, rectangle.p_max);
         Vector2 min_bound = bounds.first, max_bound = bounds.second;
-        // rasterize
+
         for (int y = min_bound.y; y < max_bound.y; y++) {
             for (int x = min_bound.x; x < max_bound.x; x++) {
-                // SSAA
-                Real r = 0, g = 0, b = 0;
-                Real subPixCenter = Real(1)/(2*SSAA), nextSubPix = 2*subPixCenter;
-                for (Real yi = subPixCenter; yi < Real(1); yi += nextSubPix) {
-                    for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
-                        Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
-                        Vector3 pT = inverse(rectangle.transform) * p;
-                        Vector3 background = img(p.x,p.y);
-                        if (pT.x > rectangle.p_min.x && pT.x < rectangle.p_max.x &&
-                            pT.y > rectangle.p_min.y && pT.y < rectangle.p_max.y) {
-                            // alpha blending
-                            Vector3 color = rectangle.alpha*rectangle.color + 
-                                            (1-rectangle.alpha)*background;
-                            r += color.x, g += color.y, b += color.z;
-                        } else {
-                            r += background.x, g += background.y, b += background.z;
-                        }
-                    }
-                }
-                img(x,y) = Vector3{r/(SSAA*SSAA), g/(SSAA*SSAA), b/(SSAA*SSAA)};
+                img(x,y) = getAvgColor(rectangle, x, y);
             }
         }
     }
@@ -134,6 +130,28 @@ struct rasterize_shape_op {
         }
     }
 }; 
+
+Image3 hw_helper(const std::vector<std::string> &params) {
+    if (params.size() == 0) {
+        return Image3(0, 0);
+    }
+
+    Scene scene = parse_scene(params[0]);
+    std::cout << scene << std::endl;
+
+    Image3 img(scene.resolution.x, scene.resolution.y);
+    // initialize background
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            img(x, y) = scene.background;
+        }
+    }
+    // rasterize
+    for (const auto &shape : scene.shapes) {
+        std::visit(rasterize_shape_op(img), shape);
+    }
+    return img;
+}
 
 Image3 hw_1_1(const std::vector<std::string> &params) {
     // Homework 1.1: render a circle at the specified
@@ -189,104 +207,40 @@ Image3 hw_1_2(const std::vector<std::string> &params) {
             img(x, y) = scene.background;
         }
     }
-    // rasterize
-    for (const Shape &shape : scene.objects) {
-        std::visit(rasterize_shape_op(img), shape);
+    // rasterization
+    for (Circle c : scene.objects) {
+        // bounding box
+        Vector2 UL = Vector2{std::max(c.center.x - c.radius, Real(0.)), 
+                             std::max(c.center.y - c.radius, Real(0.))};
+        Vector2 LR = Vector2{std::min(c.center.x + c.radius, Real(img.width)), 
+                             std::min(c.center.y + c.radius, Real(img.height))};
+        for (int y = UL.y; y < LR.y; y++) {
+            for (int x = UL.x; x < LR.x; x++) {
+                Vector2 curr = Vector2{x + Real(0.5), y + Real(0.5)};
+                if(length(curr - c.center) < c.radius)
+                    img(x, y) = c.color;
+            }
+        }
     }
     return img;
 }
 
 Image3 hw_1_3(const std::vector<std::string> &params) {
     // Homework 1.3: render multiple shapes
-    if (params.size() == 0) {
-        return Image3(0, 0);
-    }
-
-    Scene scene = parse_scene(params[0]);
-    std::cout << scene << std::endl;
-
-    Image3 img(scene.resolution.x, scene.resolution.y);
-    // initialize background
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            img(x, y) = scene.background;
-        }
-    }
-    // rasterize
-    for (const auto &shape : scene.shapes) {
-        std::visit(rasterize_shape_op(img), shape);
-    }
-    return img;
+    return hw_helper(params);
 }
 
 Image3 hw_1_4(const std::vector<std::string> &params) {
     // Homework 1.4: render transformed shapes
-    if (params.size() == 0) {
-        return Image3(0, 0);
-    }
-
-    Scene scene = parse_scene(params[0]);
-    std::cout << scene << std::endl;
-
-    Image3 img(scene.resolution.x, scene.resolution.y);
-
-    // initialize background
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            img(x, y) = scene.background;
-        }
-    }
-    // rasterize
-    for (const auto &shape : scene.shapes) {
-        std::visit(rasterize_shape_op(img), shape);
-    }
-    return img;
+    return hw_helper(params);
 }
 
 Image3 hw_1_5(const std::vector<std::string> &params) {
     // Homework 1.5: antialiasing
-    if (params.size() == 0) {
-        return Image3(0, 0);
-    }
-
-    Scene scene = parse_scene(params[0]);
-    std::cout << scene << std::endl;
-
-    Image3 img(scene.resolution.x, scene.resolution.y);
-
-    // initialize background
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            img(x, y) = scene.background;
-        }
-    }
-    // rasterize
-    for (const auto &shape : scene.shapes) {
-        std::visit(rasterize_shape_op(img), shape);
-    }
-    return img;
+    return hw_helper(params);
 }
 
 Image3 hw_1_6(const std::vector<std::string> &params) {
     // Homework 1.6: alpha blending
-    if (params.size() == 0) {
-        return Image3(0, 0);
-    }
-
-    Scene scene = parse_scene(params[0]);
-    std::cout << scene << std::endl;
-
-    Image3 img(scene.resolution.x, scene.resolution.y);
-
-    // initialize background
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            img(x, y) = scene.background;
-        }
-    }
-    // rasterize
-    for (const auto &shape : scene.shapes) {
-        std::visit(rasterize_shape_op(img), shape);
-    }
-    return img;
+    return hw_helper(params);
 }
