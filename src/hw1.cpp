@@ -3,27 +3,6 @@
 
 using namespace hw1;
 
-struct check_shape_op {
-    Vector2 point;
-    check_shape_op(Vector2 p) : point(p) {}
-    bool operator()(const Circle &circle) {
-        return length(point - circle.center) < circle.radius;
-    }
-    bool operator()(const Rectangle &rectangle) {
-        return point.x > rectangle.p_min.x && point.x < rectangle.p_max.x &&
-               point.y > rectangle.p_min.y && point.y < rectangle.p_max.y;
-    }
-    bool operator()(const Triangle &triangle) {
-        // Vector2 q01 = point - triangle.p0;
-        // Vector2 q12 = point - triangle.p1;
-        // Vector2 q20 = point - triangle.p2;
-        // bool isPos = dot(q01,n01) > 0 && dot(q12,n12) > 0 && dot(q20,n20) > 0;
-        // bool isNeg = dot(q01,n01) < 0 && dot(q12,n12) < 0 && dot(q20,n20) < 0;
-        // return isPos || isNeg;
-        return false;
-    }
-};
-
 struct rasterize_shape_op {
     Image3 &img;
     Real SSAA;
@@ -50,29 +29,6 @@ struct rasterize_shape_op {
                                     std::min(pMaxT.y, Real(img.height))};
         return std::pair(min_bound, max_bound);
     }
-    // antialiasing helper
-    Vector3 getAvgColor(const Shape &shape, int x, int y) {
-        Real r = 0, g = 0, b = 0;
-        Real subPixCenter = Real(1)/(2*SSAA);
-        Real nextSubPix = 2*subPixCenter;
-        // loop thru subpixels
-        for (Real yi = subPixCenter; yi < Real(1); yi += nextSubPix) {
-            for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
-                // convert subpixel to object space
-                Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
-                Vector3 pT = get_transform(shape) * p;
-                if(std::visit(check_shape_op(Vector2{pT.x, pT.y}), shape)) {
-                    r += get_color(shape).x;
-                    g += get_color(shape).y;
-                    b += get_color(shape).z;
-                } else {
-                    Vector3 background = img(p.x,p.y);
-                    r += background.x, g += background.y, b += background.z;
-                }
-            }
-        }
-        return Vector3{r/(SSAA*SSAA), g/(SSAA*SSAA), b/(SSAA*SSAA)};
-    }
     void operator()(const Circle &circle) {
         // bounding box
         Vector2 pMin = Vector2{circle.center.x - circle.radius, 
@@ -91,15 +47,13 @@ struct rasterize_shape_op {
                     for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
                         Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
                         Vector3 pT = inverse(circle.transform) * p;
+                        Vector3 background = img(p.x,p.y);
                         if(length(Vector2{pT.x, pT.y} - circle.center) < circle.radius) {
-                            r += circle.color.x;
-                            g += circle.color.y;
-                            b += circle.color.z;
+                            // alpha blending
+                            Vector3 color = circle.alpha*circle.color + (1-circle.alpha)*background;
+                            r += color.x, g += color.y, b += color.z;
                         } else {
-                            Vector3 background = img(p.x,p.y);
-                            r += background.x;
-                            g += background.y;
-                            b += background.z;
+                            r += background.x, g += background.y, b += background.z;
                         }
                     }
                 }
@@ -121,16 +75,15 @@ struct rasterize_shape_op {
                     for (Real xi = subPixCenter; xi < Real(1); xi += nextSubPix) {
                         Vector3 p = Vector3{x + xi, y + yi, Real(1)}; 
                         Vector3 pT = inverse(rectangle.transform) * p;
+                        Vector3 background = img(p.x,p.y);
                         if (pT.x > rectangle.p_min.x && pT.x < rectangle.p_max.x &&
                             pT.y > rectangle.p_min.y && pT.y < rectangle.p_max.y) {
-                            r += rectangle.color.x;
-                            g += rectangle.color.y;
-                            b += rectangle.color.z;
+                            // alpha blending
+                            Vector3 color = rectangle.alpha*rectangle.color + 
+                                            (1-rectangle.alpha)*background;
+                            r += color.x, g += color.y, b += color.z;
                         } else {
-                            Vector3 background = img(p.x,p.y);
-                            r += background.x;
-                            g += background.y;
-                            b += background.z;
+                            r += background.x, g += background.y, b += background.z;
                         }
                     }
                 }
@@ -163,17 +116,16 @@ struct rasterize_shape_op {
                         Vector2 q01 = Vector2{pT.x, pT.y} - triangle.p0;
                         Vector2 q12 = Vector2{pT.x, pT.y} - triangle.p1;
                         Vector2 q20 = Vector2{pT.x, pT.y} - triangle.p2;
+                        Vector3 background = img(p.x,p.y);
                         bool isPos = dot(q01,n01) > 0 && dot(q12,n12) > 0 && dot(q20,n20) > 0;
                         bool isNeg = dot(q01,n01) < 0 && dot(q12,n12) < 0 && dot(q20,n20) < 0;
                         if (isPos || isNeg) {
-                            r += triangle.color.x;
-                            g += triangle.color.y;
-                            b += triangle.color.z;
+                            // alpha blending
+                            Vector3 color = triangle.alpha*triangle.color + 
+                                            (1-triangle.alpha)*background;
+                            r += color.x, g += color.y, b += color.z;
                         } else {
-                            Vector3 background = img(p.x,p.y);
-                            r += background.x;
-                            g += background.y;
-                            b += background.z;
+                            r += background.x, g += background.y, b += background.z;
                         }
                     }
                 }
@@ -326,10 +278,15 @@ Image3 hw_1_6(const std::vector<std::string> &params) {
 
     Image3 img(scene.resolution.x, scene.resolution.y);
 
+    // initialize background
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
-            img(x, y) = Vector3{1, 1, 1};
+            img(x, y) = scene.background;
         }
+    }
+    // rasterize
+    for (const auto &shape : scene.shapes) {
+        std::visit(rasterize_shape_op(img), shape);
     }
     return img;
 }
