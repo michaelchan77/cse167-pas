@@ -1,3 +1,19 @@
+# HW 1 SUBMISSION 10/15/23
+1_2 Bonus
+1. Rasterization loop implemented in `hw_1_2` function of "src/hw1.cpp"
+2. Speedup report in "outputs/hw_1_2_bonus.txt"
+
+1_4 Bonus
+1. Animation scenes in "scenes/hw1/1-4_animation" folder
+2. Animation rendering in "outputs/hw_1_4_bonus.gif"
+
+1_7
+1. Designed scene in "scenes/hw1/1-7_deer.json"
+2. Scene rendering in "outputs/hw_1_7_deer.png"
+
+(1_8 Bonus not implemented)
+
+---
 # balboa
 UCSD CSE 167 codebase
 https://cseweb.ucsd.edu/~tzli/cse167/
