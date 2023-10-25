@@ -3,38 +3,6 @@
 
 using namespace hw2;
 
-// void rasterize_triangle (Image3 &img, 
-//                          Vector2 &p0, 
-//                          Vector2 &p1, 
-//                          Vector2 &p2, 
-//                          Vector3 &color) 
-// {
-//     // bounding box
-//     Real minX = std::min({p0.x, p1.x, p2.x});
-//     Real maxX = std::max({p0.x, p1.x, p2.x});
-//     Real minY = std::min({p0.y, p1.y, p2.y});
-//     Real maxY = std::max({p0.y, p1.y, p2.y});
-//     Vector2 pMin = Vector2{std::max(minX, Real(0)), std::max(minY, Real(0))};
-//     Vector2 pMax = Vector2{std::min(maxX, Real(img.width)), 
-//                             std::min(maxY, Real(img.height))};
-//     // edges and normals
-//     Vector2 e01 = p1-p0, n01 = Vector2{e01.y, -e01.x};
-//     Vector2 e12 = p2-p1, n12 = Vector2{e12.y, -e12.x};
-//     Vector2 e20 = p0-p2, n20 = Vector2{e20.y, -e20.x};
-//     // rasterize
-//     for (int y = pMin.y; y < pMax.y; y++) {
-//         for (int x = pMin.x; x < pMax.x; x++) {
-//             Vector2 q = Vector2{x, y};
-//             Vector2 q01 = q-p0, q12 = q-p1, q20 = q-p2;
-//             bool isPos = dot(q01,n01)>0 && dot(q12,n12)>0 && dot(q20,n20)>0;
-//             bool isNeg = dot(q01,n01)<0 && dot(q12,n12)<0 && dot(q20,n20)<0;
-//             if (isPos || isNeg) {
-//                 img(x, y) = color;
-//             }
-//         }
-//     }
-// } 
-
 Image3 hw_2_1(const std::vector<std::string> &params) {
     // Homework 2.1: render a single 3D triangle
 
