@@ -41,18 +41,13 @@ Image3 hw_2_1(const std::vector<std::string> &params) {
             z_near = std::stof(params[++i]);
         }
     }
-    
     // project vertices to image plane (camera space)
     auto pToCam = [](const Vector3 &v) { 
         return Vector2{-v.x/v.z, -v.y/v.z}; 
     };
-    Vector2 p0_2D = pToCam(p0_3D), p1_2D = pToCam(p1_3D), p2_2D = pToCam(p2_3D);
-    // set view frustum & near clipping plane
-    auto clip = [&](const Vector2 &v) { 
-        return v.x < -s*a && v.x > s*a && v.y < -s && v.y > s; 
-    };
-    bool p0_clipped = clip(p0_2D), p1_clipped = clip(p1_2D), p2_clipped = clip(p2_2D);
-    bool near_clip = -p0_3D.z<z_near && -p1_3D.z<z_near && -p2_3D.z<z_near;
+    Vector2 p0_2D = pToCam(p0_3D), 
+            p1_2D = pToCam(p1_3D), 
+            p2_2D = pToCam(p2_3D);
     // convert from camera space to 4x image space
     auto camToImg = [&](const Vector2 &v) { 
         return Vector2{img_4x.width*(v.x+s*a)/(2*s*a), -img_4x.height*(v.y-s)/(2*s)}; 
@@ -64,7 +59,15 @@ Image3 hw_2_1(const std::vector<std::string> &params) {
             img_4x(x, y) = background;
         }
     }
-    if (!(p0_clipped || p1_clipped || p2_clipped || near_clip)) {
+    // within view frustum & near clipping plane
+    auto outOfView = [&](const Vector2 &v) { 
+        return v.x < -s*a && v.x > s*a && v.y < -s && v.y > s; 
+    };
+    bool b0 = outOfView(p0_2D), 
+         b1 = outOfView(p1_2D), 
+         b2 = outOfView(p2_2D);
+    bool bNear = -p0_3D.z<z_near && -p1_3D.z<z_near && -p2_3D.z<z_near;
+    if (!(b0 || b1 || b2 || bNear)) {
         // bounding box
         Real minX = std::min({p0.x, p1.x, p2.x});
         Real maxX = std::max({p0.x, p1.x, p2.x});
@@ -109,7 +112,9 @@ Image3 hw_2_2(const std::vector<std::string> &params) {
     // Homework 2.2: render a triangle mesh
 
     Image3 img(640 /* width */, 480 /* height */);
+    Image3 img_4x(4*img.width, 4*img.height);
 
+    Real a = Real(img.width)/Real(img.height); // aspect ratio
     Real s = 1; // scaling factor of the view frustrum
     Real z_near = 1e-6; // distance of the near clipping plane
     int scene_id = 0;
@@ -126,9 +131,20 @@ Image3 hw_2_2(const std::vector<std::string> &params) {
     TriangleMesh mesh = meshes[scene_id];
     UNUSED(mesh); // silence warning, feel free to remove this
 
+    // rasterize 4x image
+    for (int y = 0; y < img_4x.height; y++) {
+        for (int x = 0; x < img_4x.width; x++) {
+            img_4x(x, y) = Vector3{0.5, 0.5, 0.5};
+        }
+    }
+    // convert to 1x image
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
-            img(x, y) = Vector3{1, 1, 1};
+            Vector3 color = {0, 0, 0};
+            for (int i = 0; i < 3; i++) {
+                color += img_4x(4*x+i, 4*y+i);
+            }
+            img(x,y) = color/Real(4);
         }
     }
     return img;
