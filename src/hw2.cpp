@@ -40,21 +40,82 @@ Image3 hw_2_1(const std::vector<std::string> &params) {
             z_near = std::stof(params[++i]);
         }
     }
+
     // set 4x image background
     for (int y = 0; y < img_4x.height; y++) {
         for (int x = 0; x < img_4x.width; x++) {
             img_4x(x, y) = Vector3{0.5, 0.5, 0.5};
         }
     }
-    // if inside near clipping plane
-    if (!(-p0.z<z_near || -p1.z<z_near || -p2.z<z_near)) {
-        // project vertices to image plane (camera space)
-        auto pToCam = [](const Vector3 &v) { 
-            return Vector2{-v.x/v.z, -v.y/v.z}; 
+
+    std::vector<std::vector<Vector2>> projected_triangles;
+    std::vector<Vector2> visible_points;
+
+    // project visible points to image plane
+    auto pToCam = [&](const Vector3 &v) { 
+        if (-v.z>z_near) { visible_points.push_back({-v.x/v.z, -v.y/v.z}); }
+    };
+    pToCam(p0), pToCam(p1), pToCam(p2);
+    // case 1: no clipping
+    if (visible_points.size() == 3) {
+        std::vector<Vector2> triangle{visible_points[0], 
+                                      visible_points[1], 
+                                      visible_points[2]};
+        projected_triangles.push_back(triangle);
+    } 
+    // case 2: clipping
+    else if (visible_points.size() > 0) {
+        std::vector<Vector2> clipped_points;
+        // clip non-visible points to image plane
+        auto clipToPlane = [&](const Vector3 &p1, const Vector3 &p0) {
+            Vector3 v10 = p0 - p1;
+            Real a = -(p1.z + 1)/v10.z;
+            clipped_points.push_back(Vector2{p1.x+(a*v10.x), p1.y+(a*v10.y)});
         };
-        Vector2 p0_cam = pToCam(p0), 
-                p1_cam = pToCam(p1), 
-                p2_cam = pToCam(p2);
+        std::vector<Vector3> point{p0, p1, p2};
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                if (-point[i].z<z_near && -point[j].z>z_near) {
+                    clipToPlane(point[i], point[j]);
+                }
+            }
+        }
+        // case 2.1: clipping forms one triangle
+        if (visible_points.size() == 1) {
+            std::vector<Vector2> triangle{visible_points[0], 
+                                          clipped_points[0], 
+                                          clipped_points[1]};
+            projected_triangles.push_back(triangle);
+        }
+        // case 2.2: clipping forms two triangles
+        // https://math.stackexchange.com/questions/1083648/find-diagonals-of-quadrilateral#1083693
+        else {
+            Vector2 &p1 = visible_points[0],
+                    &p2 = visible_points[1],
+                    &p3 = clipped_points[0],
+                    &p4 = clipped_points[1];
+            std::vector<Vector2> d1, d2;
+
+            Real edgeSum1 = length(p2-p1) + length(p4-p3),
+                 edgeSum2 = length(p3-p1) + length(p4-p2),
+                 edgeSum3 = length(p4-p1) + length(p3-p2);
+
+            Real maxSum = std::max({edgeSum1, edgeSum2, edgeSum3});
+            if (maxSum == edgeSum1) { d1 = {p1, p2}, d2 = {p3, p4}; }
+            else if (maxSum == edgeSum2) { d1 = {p1, p3}, d2 = {p2, p4}; }
+            else { d1 = {p1, p4}, d2 = {p2, p3}; }
+
+            std::vector<Vector2> triangle1{d1[0], d1[1], d2[0]};
+            std::vector<Vector2> triangle2{d1[0], d1[1], d2[1]};
+            projected_triangles.push_back(triangle1);
+            projected_triangles.push_back(triangle2);
+        }
+    }
+    for (auto triangle : projected_triangles) {
+        Vector2 &p0_cam = triangle[0], 
+                &p1_cam = triangle[1], 
+                &p2_cam = triangle[2];
+
         // convert from camera space to 4x image space
         auto camToImg = [&](const Vector2 &v) { 
             return Vector2{img_4x.width*(v.x+s*a)/(2*s*a), 
@@ -377,6 +438,8 @@ Image3 hw_2_4(const std::vector<std::string> &params) {
             img(x, y) = Vector3{1, 1, 1};
         }
     }
+    // same as b4 but mvp matrix
+    // 
     return img;
 }
 
