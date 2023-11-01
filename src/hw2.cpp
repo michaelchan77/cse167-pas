@@ -432,14 +432,129 @@ Image3 hw_2_4(const std::vector<std::string> &params) {
 
     Image3 img(scene.camera.resolution.x,
                scene.camera.resolution.y);
+    Image3 img_4x(4*img.width, 4*img.height);
+    Image1 z_buffer(4*img.width, 4*img.height);
 
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            img(x, y) = Vector3{1, 1, 1};
+    Real a = Real(img.width)/Real(img.height); // aspect ratio
+    Real s = scene.camera.s; // scaling factor of the view frustrum
+    Real z_near = scene.camera.z_near; // distance of the near clipping plane
+
+    Matrix4x4 V = inverse(scene.camera.cam_to_world); // world_to_camera
+    Matrix4x4 P1 = Matrix4x4::identity(); // camera_to_projected_cam
+    P1(2, 2) = 0, P1(3, 3) = 0, P1(2, 3) = 1, P1(3, 2) = -1;
+    Matrix4x4 P2 = Matrix4x4::identity(); // projected_cam_to_screen
+    P2(0, 0) = img_4x.width/(2*s*a), P2(0, 3) = img_4x.width/Real(2), 
+    P2(1, 1) = -img_4x.height/(2*s), P2(1, 3) = img_4x.height/Real(2);
+
+    // initialize background and z_buffer
+    for (int y = 0; y < img_4x.height; y++) {
+        for (int x = 0; x < img_4x.width; x++) {
+            img_4x(x, y) = Vector3{0.5, 0.5, 0.5};
+            z_buffer(x, y) = -infinity<Real>();
         }
     }
-    // same as b4 but mvp matrix
-    // 
+    // for each mesh
+    for (TriangleMesh mesh : scene.meshes) {
+        // for each 3D triangle
+        for (int i = 0; i < mesh.faces.size(); i++) {
+            Vector3 p0 = mesh.vertices[mesh.faces[i].x], 
+                    p1 = mesh.vertices[mesh.faces[i].y], 
+                    p2 = mesh.vertices[mesh.faces[i].z];
+            Matrix4x4 M = mesh.model_matrix; // object_to_world
+            // NOTE on cam/pcam: defined differently from 2.1-3, now cam is
+            // camera space and pcam is projected camera (previously cam)
+            Vector4 p0_cam = V * M * Vector4{p0.x, p0.y, p0.z, Real(1)},
+                    p1_cam = V * M * Vector4{p1.x, p1.y, p1.z, Real(1)},
+                    p2_cam = V * M * Vector4{p2.x, p2.y, p2.z, Real(1)};
+            // if inside near clipping plane
+            if (!(-p0_cam.z<z_near || -p1_cam.z<z_near || -p2_cam.z<z_near)) {
+                Vector4 p0_pcam = P2 * P1 * p0_cam, 
+                        p1_pcam = P2 * P1 * p1_cam, 
+                        p2_pcam = P2 * P1 * p2_cam;
+                Vector2 p0_img = Vector2{p0_pcam.x/p0_pcam.w, p0_pcam.y/p0_pcam.w},
+                        p1_img = Vector2{p1_pcam.x/p1_pcam.w, p1_pcam.y/p1_pcam.w},
+                        p2_img = Vector2{p2_pcam.x/p2_pcam.w, p2_pcam.y/p2_pcam.w}; 
+                // define bounding box
+                Real minX = max(std::min({p0_img.x, p1_img.x, p2_img.x}), Real(0));
+                Real minY = max(std::min({p0_img.y, p1_img.y, p2_img.y}), Real(0));
+                Real maxX = min(std::max({p0_img.x, p1_img.x, p2_img.x}), Real(img_4x.width));
+                Real maxY = min(std::max({p0_img.y, p1_img.y, p2_img.y}), Real(img_4x.height));
+                // define edges and normals
+                Vector2 e01 = p1_img - p0_img, 
+                        e12 = p2_img - p1_img, 
+                        e20 = p0_img - p2_img;
+                auto normal = [](const Vector2 &v) { 
+                    return Vector2{v.y, -v.x}; 
+                };
+                Vector2 n01 = normal(e01), 
+                        n12 = normal(e12), 
+                        n20 = normal(e20);
+                // for each pixel in bounding box
+                for (int y = minY; y < maxY; y++) {
+                    for (int x = minX; x < maxX; x++) {
+                        Vector2 p_img{x + Real(0.5), y + Real(0.5)};
+                        bool s01 = dot(p_img - p0_img, n01) > 0;
+                        bool s12 = dot(p_img - p1_img, n12) > 0;
+                        bool s20 = dot(p_img - p2_img, n20) > 0;
+                        // if pixel center hits triangle
+                        if ((s01 && s12 && s20) || (!s01 && !s12 && !s20)) {
+
+                            // // convert to camera space
+                            // Vector2 p_cam{2*s*a*p_img.x/img_4x.width - s*a,
+                            //             -2*s*p_img.y/img_4x.height + s};
+
+                            // compute projected barycentric coordinates
+                            auto area = [](const Vector2 &v0, 
+                                        const Vector2 &v1, 
+                                        const Vector2 &v2) { 
+                                Vector2 v12 = v2 - v1, v01 = v1 - v0;
+                                Vector3 v{v12.x, v12.y, Real(0)}, 
+                                        u{v01.x, v01.y, Real(0)};
+                                return length(cross(v, u))/Real(2);
+                            };
+                            Real denom_p = area(p0_img, p1_img, p2_img);
+                            Real b0_p = area(p_img, p1_img, p2_img)/denom_p, 
+                                b1_p = area(p0_img, p_img, p2_img)/denom_p, 
+                                b2_p = area(p0_img, p1_img, p_img)/denom_p;
+
+                            // Real denom_p = area(p0_cam, p1_cam, p2_cam);
+                            // Real b0_p = area(p_cam, p1_cam, p2_cam)/denom_p, 
+                            //     b1_p = area(p0_cam, p_cam, p2_cam)/denom_p, 
+                            //     b2_p = area(p0_cam, p1_cam, p_cam)/denom_p;
+
+                            // convert to original barycentric coordinates
+                            Real denom = b0_p/p0_cam.z + b1_p/p1_cam.z + b2_p/p2_cam.z;
+                            Real b0 = (b0_p/p0_cam.z)/denom, 
+                                b1 = (b1_p/p1_cam.z)/denom, 
+                                b2 = (b2_p/p2_cam.z)/denom;
+                            // color based on triangle depth
+                            Real p_z = b0*p0_cam.z + b1*p1_cam.z + b2*p2_cam.z;
+                            if (p_z > z_buffer(x, y)) {
+                                Vector3 c0 = mesh.vertex_colors[mesh.faces[i].x];
+                                Vector3 c1 = mesh.vertex_colors[mesh.faces[i].y];
+                                Vector3 c2 = mesh.vertex_colors[mesh.faces[i].z];
+                                img_4x(x, y) = b0*c0 + b1*c1 + b2*c2;
+                                z_buffer(x, y) = p_z;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // convert to 1x image
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            Vector3 color = {0, 0, 0};
+            Real n = 4;
+            for (int dx = 0; dx < n; dx++) {
+                for (int dy = 0; dy < n; dy++) {
+                    color += img_4x(n*x+dx, n*y+dy);
+                }
+            }
+            img(x,y) = color/(n*n);
+        }
+    }
     return img;
 }
 

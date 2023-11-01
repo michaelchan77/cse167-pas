@@ -242,21 +242,42 @@ Matrix4x4 parse_transformation(const json &node) {
                 (*scale_it)[0], (*scale_it)[1], (*scale_it)[2]
             };
             // TODO (HW2.4): construct a scale matrix and composite with F
-            UNUSED(scale); // silence warning, feel free to remove it
+            Matrix4x4 S = Matrix4x4::identity();
+            S(0, 0) = scale.x;
+            S(1, 1) = scale.y;
+            S(2, 2) = scale.z;
+            F = S*F;
         } else if (auto rotate_it = it->find("rotate"); rotate_it != it->end()) {
             Real angle = (*rotate_it)[0];
             Vector3 axis = normalize(Vector3{
                 (*rotate_it)[1], (*rotate_it)[2], (*rotate_it)[3]
             });
             // TODO (HW2.4): construct a rotation matrix and composite with F
-            UNUSED(angle); // silence warning, feel free to remove it
-            UNUSED(axis); // silence warning, feel free to remove it
+            Real angleRad = angle*(M_PI/Real(180.));
+            Matrix4x4 R = Matrix4x4::identity();
+            R(0,0) = axis.x*axis.x + (1-axis.x*axis.x)*std::cos(angleRad);
+            R(1,0) = axis.x*axis.y*(1-std::cos(angleRad)) + axis.z*std::sin(angleRad);
+            R(2,0) = axis.x*axis.z*(1-std::cos(angleRad)) - axis.y*std::sin(angleRad);
+            
+            R(0,1) = axis.y*axis.x*(1-std::cos(angleRad)) - axis.z*std::sin(angleRad);
+            R(1,1) = axis.y*axis.y + (1-axis.y*axis.y)*std::cos(angleRad);
+            R(2,1) = axis.y*axis.z*(1-std::cos(angleRad)) + axis.x*std::sin(angleRad);
+
+            R(0,2) = axis.z*axis.x*(1-std::cos(angleRad)) + axis.y*std::sin(angleRad);
+            R(1,2) = axis.z*axis.y*(1-std::cos(angleRad)) - axis.x*std::sin(angleRad);
+            R(2,2) = axis.z*axis.z + (1-axis.z*axis.z)*std::cos(angleRad);
+            F = R*F;
+
         } else if (auto translate_it = it->find("translate"); translate_it != it->end()) {
             Vector3 translate = Vector3{
                 (*translate_it)[0], (*translate_it)[1], (*translate_it)[2]
             };
             // TODO (HW2.4): construct a translation matrix and composite with F
-            UNUSED(translate); // silence warning, feel free to remove it
+            Matrix4x4 T = Matrix4x4::identity();
+            T(0,3) = translate.x;
+            T(1,3) = translate.y;
+            T(2,3) = translate.z;
+            F = T*F;
         } else if (auto lookat_it = it->find("lookat"); lookat_it != it->end()) {
             Vector3 position{0, 0, 0};
             Vector3 target{0, 0, -1};
@@ -279,7 +300,16 @@ Matrix4x4 parse_transformation(const json &node) {
                     (*up_it)[0], (*up_it)[1], (*up_it)[2]
                 });
             }
+            Vector3 d = normalize(target - position);
+            Vector3 r = normalize(cross(d, up));
+            Vector3 u_new = cross(r, d);
             // TODO (HW2.4): construct a lookat matrix and composite with F
+            Matrix4x4 L = Matrix4x4::identity();
+            L(0,0) = r.x, L(1,0) = r.y, L(2,0) = r.z;
+            L(0,1) = u_new.x, L(1,1) = u_new.y, L(2,1) = u_new.z;
+            L(0,2) = -d.x, L(1,2) = -d.y, L(2,2) = -d.z;
+            L(0,3) = position.x, L(1,3) = position.y, L(2,3) = position.z;
+            F = L*F;
         }
     }
     return F;
