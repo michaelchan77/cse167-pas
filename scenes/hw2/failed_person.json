@@ -1,0 +1,26 @@
+{
+    "camera":
+    {
+        "resolution": [640, 480],
+        "transform": [
+            {
+                "lookat":
+                {
+                    "position": [1, -5, 2],
+                    "target": [0, 5, -5],
+                    "up": [0, 1, 1]
+                }
+            }
+        ],
+        "s": 0.6,
+        "z_near": 1e-6
+    },
+    "background": [
+        0.7, 0.5, 0.5
+    ],
+    "objects": [
+        {
+            "filename": "failed_person.ply"
+        }
+    ]
+}
