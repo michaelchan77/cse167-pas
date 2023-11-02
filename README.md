@@ -1,17 +1,15 @@
-# HW 1 Submission 10/15/23
-1_2 Bonus
-1. Rasterization loop implemented in `hw_1_2` function of "src/hw1.cpp"
-2. Speedup report in "outputs/hw_1_2_bonus.txt"
+# HW 2 Submission 11/1/23
+2_1 Bonus: Triangle Clipping
+1. Clipping implemented in lines 50-115 of "src/hw2.cpp"
+2. Output images for 3 test scenes in "hw_2_outputs/hw_2_1_clipping*.png"
 
-1_4 Bonus
-1. Animation scenes in "scenes/hw1/1-4_animation" folder
-2. Animation rendering in "outputs/hw_1_4_bonus.gif"
+2_4 Bonus: Teapot Animation
+1. Json files in "scenes/hw2/teapot_f*.json"
+2. Animation in "hw_2_outputs/hw_2_4_animated_teapot.gif"
 
-1_7
-1. Designed scene in "scenes/hw1/1-7_deer.json"
-2. Scene rendering in "outputs/hw_1_7_deer.png"
-
-1_8 Bonus not implemented
+2_5 Design: Failed Person Scene
+1. Json and blender-exported ply in "scenes/hw2/failed_person*"
+2. Output image in "hw_2_outputs/hw_2_5_failed_person.png"
 
 ---
 # balboa
