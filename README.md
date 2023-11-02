@@ -2,6 +2,9 @@
 2_1 Bonus: Triangle Clipping
 1. Clipping implemented in lines 50-115 of "src/hw2.cpp"
 2. Output images for 3 test scenes in "hw_2_outputs/hw_2_1_clipping*.png"
+3. Thought process/brainstorm included here:
+![CSE 167-11](https://github.com/michaelchan77/cse167-pas/assets/97709300/f2279df5-f0ed-42b2-95f8-8b1dac835b51)
+
 
 2_4 Bonus: Teapot Animation
 1. Json files in "scenes/hw2/teapot_f*.json"
