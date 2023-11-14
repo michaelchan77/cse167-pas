@@ -2,12 +2,13 @@
 #include "3rdparty/glad.h" // needs to be included before GLFW!
 #include "3rdparty/glfw/include/GLFW/glfw3.h"
 #include "hw3_scenes.h"
+#include "hw3_shader.h"
 
 using namespace hw3;
 
 // settings
 const unsigned int WIDTH = 800;
-const unsigned int HEIGHT = 600;
+const unsigned int HEIGHT = 800;
 
 // glfw callback function resizes viewport when window size is changed
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -68,9 +69,10 @@ void hw_3_2(const std::vector<std::string> &params) {
 
     const char *vertexShaderSource_3_2 = "#version 330 core\n"
     "layout (location = 0) in vec3 aPos;\n"
+    "uniform mat4 rotate;\n"
     "void main()\n"
     "{\n"
-    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+    "   gl_Position = rotate * vec4(aPos, 1.0f);\n"
     "}\0";
     const char *fragmentShaderSource_3_2 = "#version 330 core\n"
     "out vec4 FragColor;\n"
@@ -182,9 +184,21 @@ void hw_3_2(const std::vector<std::string> &params) {
         // render
         glClearColor(0.7f, 0.35f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        // draw triangle
+        // activate shader
         glUseProgram(shaderProgram);
         glBindVertexArray(VAO);
+        // update shader uniform
+        double timeValue = glfwGetTime();
+        const float PI = float(c_PI);
+        float angle = sin(timeValue) * PI + PI;
+        Matrix4x4f R = Matrix4x4f::identity();
+        R(0,0) = std::cos(angle);
+        R(0,1) = -std::sin(angle);
+        R(1,0) = std::sin(angle);
+        R(1,1) = std::cos(angle);
+        int rotateLoc = glGetUniformLocation(shaderProgram, "rotate");
+        glUniformMatrix4fv(rotateLoc, 1, GL_FALSE, R.ptr());
+
         // glDrawArrays(GL_TRIANGLES, 0, 3);
         glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
 
