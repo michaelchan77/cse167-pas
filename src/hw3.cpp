@@ -67,20 +67,6 @@ void hw_3_1(const std::vector<std::string> &params) {
 void hw_3_2(const std::vector<std::string> &params) {
     // HW 3.2: Render a single 2D triangle
 
-    const char *vertexShaderSource_3_2 = "#version 330 core\n"
-    "layout (location = 0) in vec3 aPos;\n"
-    "uniform mat4 rotate;\n"
-    "void main()\n"
-    "{\n"
-    "   gl_Position = rotate * vec4(aPos, 1.0f);\n"
-    "}\0";
-    const char *fragmentShaderSource_3_2 = "#version 330 core\n"
-    "out vec4 FragColor;\n"
-    "void main()\n"
-    "{\n"
-    "   FragColor = vec4(0.1f, 0.35f, 0.45f, 1.0f);\n"
-    "}\n\0";
-
     // glfw initialize and configure
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -106,42 +92,9 @@ void hw_3_2(const std::vector<std::string> &params) {
 
     // build and compile shader program
     // --------------------------------
-    // vertex shader
-    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource_3_2, NULL);
-    glCompileShader(vertexShader);
-    // check for shader compile errors
-    int success;
-    char infoLog[512];
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-    // fragment shader
-    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource_3_2, NULL);
-    glCompileShader(fragmentShader);
-    // check for shader compile errors
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-    // link shaders
-    unsigned int shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-    // check for linking errors
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
-    }
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
+    Shader ourShader("/Users/michael/Documents/GitHub/cse167-pas/src/hw3-2_shader.vs", 
+                     "/Users/michael/Documents/GitHub/cse167-pas/src/hw3-2_shader.fs");
+    
     // set up vertex data/buffers and configure vertex attributes
     // ----------------------------------------------------------
     // store vertex data in memory on graphics card
@@ -185,7 +138,7 @@ void hw_3_2(const std::vector<std::string> &params) {
         glClearColor(0.7f, 0.35f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         // activate shader
-        glUseProgram(shaderProgram);
+        ourShader.use();
         glBindVertexArray(VAO);
         // update shader uniform
         double timeValue = glfwGetTime();
@@ -196,8 +149,7 @@ void hw_3_2(const std::vector<std::string> &params) {
         R(0,1) = -std::sin(angle);
         R(1,0) = std::sin(angle);
         R(1,1) = std::cos(angle);
-        int rotateLoc = glGetUniformLocation(shaderProgram, "rotate");
-        glUniformMatrix4fv(rotateLoc, 1, GL_FALSE, R.ptr());
+        ourShader.setMat4("rotate", R);
 
         // glDrawArrays(GL_TRIANGLES, 0, 3);
         glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
@@ -210,7 +162,6 @@ void hw_3_2(const std::vector<std::string> &params) {
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
-    glDeleteProgram(shaderProgram);
 
     glfwTerminate();
     return;
