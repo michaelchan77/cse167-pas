@@ -106,6 +106,7 @@ void hw_3_2(const std::vector<std::string> &params) {
     unsigned int indices[] = {
         0, 1, 2   // first triangle
     };  
+   
     unsigned int VBO, VAO, EBO;
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -175,6 +176,125 @@ void hw_3_3(const std::vector<std::string> &params) {
 
     Scene scene = parse_scene(params[0]);
     std::cout << scene << std::endl;
+
+    // hw_2_4
+    // ------
+    int width = scene.camera.resolution.x;
+    int height = scene.camera.resolution.y;
+    float a = float(width) / height; // aspect ratio
+    float s = scene.camera.s; // scaling factor of the view frustrum
+    float z_near = scene.camera.z_near; // distance of the near clipping plane
+    float z_far = scene.camera.z_far; // distance of the far clipping plane
+
+    Matrix4x4f V = inverse(scene.camera.cam_to_world); // world_to_camera
+    Matrix4x4f P =  Matrix4x4::identity(); // camera_to_clip
+    P(0, 0) = 1.0f / (a * s);
+    P(1, 1) = 1.0f / s;
+    P(2, 2) = -(z_far) / (z_far - z_near);
+    P(2, 3) = -(z_far * z_near) / (z_far - z_near);
+    P(3, 2) = -1;
+    P(3, 3) = 0;
+
+    // glfw initialize and configure
+    // -----------------------------
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // for mac os x
+    
+    // glfw create window
+    // ------------------
+    GLFWwindow* window = glfwCreateWindow(width, height, "LearnOpenGL", NULL, NULL);
+    if (window == NULL) {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return;
+    }
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    
+    // glad load OpenGL function pointers
+    // ----------------------------------
+    if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return;
+    }
+
+    // configure global opengl state
+    // -----------------------------
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_FRAMEBUFFER_SRGB);
+
+    // build and compile shader program
+    // --------------------------------
+    Shader ourShader("/Users/michael/Documents/GitHub/cse167-pas/src/hw3-3_shader.vs", 
+                     "/Users/michael/Documents/GitHub/cse167-pas/src/hw3-2_shader.fs");
+    
+    // set up vertex data/buffers and configure vertex attributes
+    // ----------------------------------------------------------
+    // store vertex data in memory on graphics card
+    unsigned int VBO, VAO, EBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+    // bind vertex array object first, then bind and set vertex buffers and configure vertex attributes
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, 
+                 scene.meshes[0].vertices.size() * sizeof(Vector3f), 
+                 scene.meshes[0].vertices.data(), 
+                 GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
+                 scene.meshes[0].faces.size() * sizeof(Vector3f), 
+                 scene.meshes[0].faces.data(), 
+                 GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // unbind once registered
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    
+    // render loop
+    // -----------
+    while(!glfwWindowShouldClose(window)) {
+        // input
+        processInput(window);
+
+        // render
+        // ------
+        glClearColor(0.7f, 0.35f, 0.3f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // activate shader
+        ourShader.use();
+
+        for (TriangleMesh mesh : scene.meshes) {
+            Matrix4x4f M = mesh.model_matrix; // object_to_world
+            // update shader uniforms
+            ourShader.setMat4("model", M);
+            ourShader.setMat4("view", V);
+            ourShader.setMat4("projection", P);
+            // render mesh
+            glBindVertexArray(VAO);
+            glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, 0);   // glDrawArrays(GL_TRIANGLES, 0, 3);
+        }
+
+        // glfw swap buffers and check IO events
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+    // de-allocate all resources once they've outlived their purpose:
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
+
+    glfwTerminate();
+    return;
 }
 
 void hw_3_4(const std::vector<std::string> &params) {
