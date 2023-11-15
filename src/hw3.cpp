@@ -273,16 +273,16 @@ void hw_3_3(const std::vector<std::string> &params) {
         // activate shader
         ourShader.use();
 
-        for (TriangleMesh mesh : scene.meshes) {
-            Matrix4x4f M = mesh.model_matrix; // object_to_world
+        //for (TriangleMesh mesh : scene.meshes) {
+            Matrix4x4f M = scene.meshes[0].model_matrix; // object_to_world
             // update shader uniforms
             ourShader.setMat4("model", M);
             ourShader.setMat4("view", V);
             ourShader.setMat4("projection", P);
             // render mesh
             glBindVertexArray(VAO);
-            glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, 0);   // glDrawArrays(GL_TRIANGLES, 0, 3);
-        }
+            glDrawElements(GL_TRIANGLES, scene.meshes[0].faces.size() * sizeof(Vector3f), GL_UNSIGNED_INT, 0);   // glDrawArrays(GL_TRIANGLES, 0, 3);
+        //}
 
         // glfw swap buffers and check IO events
         glfwSwapBuffers(window);
