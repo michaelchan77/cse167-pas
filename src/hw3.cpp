@@ -233,31 +233,38 @@ void hw_3_3(const std::vector<std::string> &params) {
     
     // set up vertex data/buffers and configure vertex attributes
     // ----------------------------------------------------------
-    // store vertex data in memory on graphics card
-    unsigned int VBO, VAO, EBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-    // bind vertex array object first, then bind and set vertex buffers and configure vertex attributes
-    glBindVertexArray(VAO);
+    // generate VAO/VBO/EBOs for each mesh
+    int n = scene.meshes.size();
+    std::vector<unsigned int> VAOs(n), VBOs(n), EBOs(n);
 
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, 
-                 scene.meshes[0].vertices.size() * sizeof(Vector3f), 
-                 scene.meshes[0].vertices.data(), 
-                 GL_STATIC_DRAW);
+    glGenVertexArrays(VAOs.size(), VAOs.data());
+    glGenBuffers(VBOs.size(), VBOs.data());
+    glGenBuffers(EBOs.size(), EBOs.data());
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
-                 scene.meshes[0].faces.size() * sizeof(Vector3f), 
-                 scene.meshes[0].faces.data(), 
-                 GL_STATIC_DRAW);
+    for (int i = 0; i < n; i++) {
+        // bind vertex array object first
+        glBindVertexArray(VAOs[i]);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    // unbind once registered
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+        // bind and set vertex buffers and configure vertex attributes
+        glBindBuffer(GL_ARRAY_BUFFER, VBOs[i]);
+        glBufferData(GL_ARRAY_BUFFER, 
+                     scene.meshes[i].vertices.size() * sizeof(Vector3f), 
+                     scene.meshes[i].vertices.data(), 
+                     GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOs[i]);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
+                     scene.meshes[i].faces.size() * sizeof(Vector3f), 
+                     scene.meshes[i].faces.data(), 
+                    GL_STATIC_DRAW);
+        
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        
+        // unbind once registered
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
     
     // render loop
     // -----------
@@ -273,25 +280,25 @@ void hw_3_3(const std::vector<std::string> &params) {
         // activate shader
         ourShader.use();
 
-        //for (TriangleMesh mesh : scene.meshes) {
-            Matrix4x4f M = scene.meshes[0].model_matrix; // object_to_world
+        for (int i = 0; i < n; i++) {
+            Matrix4x4f M = scene.meshes[i].model_matrix; // object_to_world
             // update shader uniforms
             ourShader.setMat4("model", M);
             ourShader.setMat4("view", V);
             ourShader.setMat4("projection", P);
             // render mesh
-            glBindVertexArray(VAO);
-            glDrawElements(GL_TRIANGLES, scene.meshes[0].faces.size() * sizeof(Vector3f), GL_UNSIGNED_INT, 0);   // glDrawArrays(GL_TRIANGLES, 0, 3);
-        //}
+            glBindVertexArray(VAOs[i]);
+            glDrawElements(GL_TRIANGLES, scene.meshes[i].faces.size() * sizeof(Vector3f), GL_UNSIGNED_INT, 0);   // glDrawArrays(GL_TRIANGLES, 0, 3);
+        }
 
         // glfw swap buffers and check IO events
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
     // de-allocate all resources once they've outlived their purpose:
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
+    glDeleteVertexArrays(VAOs.size(), VAOs.data());
+    glDeleteBuffers(VBOs.size(), VBOs.data());
+    glDeleteBuffers(EBOs.size(), EBOs.data());
 
     glfwTerminate();
     return;
