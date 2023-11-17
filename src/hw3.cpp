@@ -6,7 +6,7 @@
 
 using namespace hw3;
 
-// settings
+// 3.1 and 3.2 window settings
 const unsigned int WIDTH = 800;
 const unsigned int HEIGHT = 800;
 
@@ -22,6 +22,7 @@ void processInput(GLFWwindow *window) {
     }
 }
 
+// ==================================================
 void hw_3_1(const std::vector<std::string> &params) {
     // HW 3.1: Open a window using GLFW
 
@@ -64,6 +65,7 @@ void hw_3_1(const std::vector<std::string> &params) {
     return;
 }
 
+// ==================================================
 void hw_3_2(const std::vector<std::string> &params) {
     // HW 3.2: Render a single 2D triangle
 
@@ -168,6 +170,7 @@ void hw_3_2(const std::vector<std::string> &params) {
     return;
 }
 
+// ==================================================
 void hw_3_3(const std::vector<std::string> &params) {
     // HW 3.3: Render a scene
     if (params.size() == 0) {
@@ -177,14 +180,15 @@ void hw_3_3(const std::vector<std::string> &params) {
     Scene scene = parse_scene(params[0]);
     std::cout << scene << std::endl;
 
-    // hw_2_4
-    // ------
+    // scene attributes
+    // ----------------
     int width = scene.camera.resolution.x;
     int height = scene.camera.resolution.y;
     float a = float(width) / height; // aspect ratio
     float s = scene.camera.s; // scaling factor of the view frustrum
     float z_near = scene.camera.z_near; // distance of the near clipping plane
     float z_far = scene.camera.z_far; // distance of the far clipping plane
+    Vector3f bkg = scene.background;
 
     Matrix4x4f V = inverse(scene.camera.cam_to_world); // world_to_camera
     Matrix4x4f P =  Matrix4x4::identity(); // camera_to_clip
@@ -229,16 +233,17 @@ void hw_3_3(const std::vector<std::string> &params) {
     // build and compile shader program
     // --------------------------------
     Shader ourShader("/Users/michael/Documents/GitHub/cse167-pas/src/hw3-3_shader.vs", 
-                     "/Users/michael/Documents/GitHub/cse167-pas/src/hw3-2_shader.fs");
+                     "/Users/michael/Documents/GitHub/cse167-pas/src/hw3-3_shader.fs");
     
     // set up vertex data/buffers and configure vertex attributes
     // ----------------------------------------------------------
     // generate VAO/VBO/EBOs for each mesh
     int n = scene.meshes.size();
-    std::vector<unsigned int> VAOs(n), VBOs(n), EBOs(n);
+    std::vector<unsigned int> VAOs(n), VBOs_v(n), VBOs_c(n), EBOs(n);
 
     glGenVertexArrays(VAOs.size(), VAOs.data());
-    glGenBuffers(VBOs.size(), VBOs.data());
+    glGenBuffers(VBOs_v.size(), VBOs_v.data());
+    glGenBuffers(VBOs_c.size(), VBOs_c.data());
     glGenBuffers(EBOs.size(), EBOs.data());
 
     for (int i = 0; i < n; i++) {
@@ -246,24 +251,31 @@ void hw_3_3(const std::vector<std::string> &params) {
         glBindVertexArray(VAOs[i]);
 
         // bind and set vertex buffers and configure vertex attributes
-        glBindBuffer(GL_ARRAY_BUFFER, VBOs[i]);
+        glBindBuffer(GL_ARRAY_BUFFER, VBOs_v[i]);
         glBufferData(GL_ARRAY_BUFFER, 
                      scene.meshes[i].vertices.size() * sizeof(Vector3f), 
                      scene.meshes[i].vertices.data(), 
+                     GL_STATIC_DRAW); 
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        glBindBuffer(GL_ARRAY_BUFFER, VBOs_c[i]);
+        glBufferData(GL_ARRAY_BUFFER, 
+                     scene.meshes[i].vertex_colors.size() * sizeof(Vector3f), 
+                     scene.meshes[i].vertex_colors.data(), 
                      GL_STATIC_DRAW);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOs[i]);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
                      scene.meshes[i].faces.size() * sizeof(Vector3f), 
                      scene.meshes[i].faces.data(), 
                     GL_STATIC_DRAW);
-        
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-        
-        // unbind once registered
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+
+        // // unbind once registered (not strictly needed)
+        // glBindBuffer(GL_ARRAY_BUFFER, 0);
+        // glBindVertexArray(0);
     }
     
     // render loop
@@ -274,7 +286,7 @@ void hw_3_3(const std::vector<std::string> &params) {
 
         // render
         // ------
-        glClearColor(0.7f, 0.35f, 0.3f, 1.0f);
+        glClearColor(bkg.x, bkg.y, bkg.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // activate shader
@@ -297,13 +309,14 @@ void hw_3_3(const std::vector<std::string> &params) {
     }
     // de-allocate all resources once they've outlived their purpose:
     glDeleteVertexArrays(VAOs.size(), VAOs.data());
-    glDeleteBuffers(VBOs.size(), VBOs.data());
+    glDeleteBuffers(VBOs_v.size(), VBOs_v.data());
     glDeleteBuffers(EBOs.size(), EBOs.data());
 
     glfwTerminate();
     return;
 }
 
+// ==================================================
 void hw_3_4(const std::vector<std::string> &params) {
     // HW 3.4: Render a scene with lighting
     if (params.size() == 0) {
