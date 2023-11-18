@@ -18,6 +18,7 @@ void processInput(GLFWwindow *window);
 
 // camera
 Vector3f cameraPos, cameraDir, cameraRight; // 3.3
+float z_far, z_near; 
 
 // timing
 float deltaTime = 0.0f;	// time between current frame and last frame
@@ -187,8 +188,8 @@ void hw_3_3(const std::vector<std::string> &params) {
     int height = scene.camera.resolution.y;
     float a = float(width) / height; // aspect ratio
     float s = scene.camera.s; // scaling factor of the view frustrum
-    float z_near = scene.camera.z_near; // distance of the near clipping plane
-    float z_far = scene.camera.z_far; // distance of the far clipping plane
+    z_near = scene.camera.z_near; // distance of the near clipping plane
+    z_far = scene.camera.z_far; // distance of the far clipping plane
     Vector3f bkg = scene.background;
 
     // camera
@@ -363,7 +364,7 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
-    float cameraSpeed = static_cast<float>(2.5 * deltaTime);
+    float cameraSpeed = static_cast<float>(0.1f * (z_far - z_near) * deltaTime);
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         cameraPos -= cameraSpeed * cameraDir;
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
