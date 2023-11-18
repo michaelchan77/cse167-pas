@@ -6,21 +6,22 @@
 
 using namespace hw3;
 
-// 3.1 and 3.2 window settings
-const unsigned int WIDTH = 800;
+// settings
+// --------
+const unsigned int WIDTH = 800; // 3.1 and 3.2
 const unsigned int HEIGHT = 800;
 
-// glfw callback function resizes viewport when window size is changed
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    glViewport(0, 0, width, height);
-}
+// callback functions
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void processInputStatic(GLFWwindow *window); // 3.1 and 3.2
+void processInput(GLFWwindow *window);
 
-// glfw exit upon escape key
-void processInput(GLFWwindow *window) {
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window, true);
-    }
-}
+// camera
+Vector3f cameraPos, cameraDir, cameraRight; // 3.3
+
+// timing
+float deltaTime = 0.0f;	// time between current frame and last frame
+float lastFrame = 0.0f;
 
 // ==================================================
 void hw_3_1(const std::vector<std::string> &params) {
@@ -51,7 +52,7 @@ void hw_3_1(const std::vector<std::string> &params) {
     // render loop
     while(!glfwWindowShouldClose(window)) {
         // input
-        processInput(window);
+        processInputStatic(window);
 
         // render
         glClearColor(0.7f, 0.35f, 0.3f, 1.0f);
@@ -135,7 +136,7 @@ void hw_3_2(const std::vector<std::string> &params) {
     // -----------
     while(!glfwWindowShouldClose(window)) {
         // input
-        processInput(window);
+        processInputStatic(window);
 
         // render
         glClearColor(0.7f, 0.35f, 0.3f, 1.0f);
@@ -190,14 +191,11 @@ void hw_3_3(const std::vector<std::string> &params) {
     float z_far = scene.camera.z_far; // distance of the far clipping plane
     Vector3f bkg = scene.background;
 
-    Matrix4x4f V = inverse(scene.camera.cam_to_world); // world_to_camera
-    Matrix4x4f P =  Matrix4x4::identity(); // camera_to_clip
-    P(0, 0) = 1.0f / (a * s);
-    P(1, 1) = 1.0f / s;
-    P(2, 2) = -(z_far) / (z_far - z_near);
-    P(2, 3) = -(z_far * z_near) / (z_far - z_near);
-    P(3, 2) = -1;
-    P(3, 3) = 0;
+    // camera
+    Matrix4x4f L = scene.camera.cam_to_world; // lookAt + transform
+    cameraPos = Vector3f{L(0, 3), L(1, 3), L(2, 3)};
+    cameraDir = Vector3f{L(0, 2), L(1, 2), L(2, 2)};
+    cameraRight = Vector3f{L(0, 0), L(1, 0), L(2, 0)};
 
     // glfw initialize and configure
     // -----------------------------
@@ -232,8 +230,8 @@ void hw_3_3(const std::vector<std::string> &params) {
 
     // build and compile shader program
     // --------------------------------
-    Shader ourShader("/Users/michael/Documents/GitHub/cse167-pas/src/hw3-3_shader.vs", 
-                     "/Users/michael/Documents/GitHub/cse167-pas/src/hw3-3_shader.fs");
+    Shader ourShader("../src/hw3-3_shader.vs", // relative path from build
+                     "../src/hw3-3_shader.fs");
     
     // set up vertex data/buffers and configure vertex attributes
     // ----------------------------------------------------------
@@ -251,6 +249,7 @@ void hw_3_3(const std::vector<std::string> &params) {
         glBindVertexArray(VAOs[i]);
 
         // bind and set vertex buffers and configure vertex attributes
+        // vertices
         glBindBuffer(GL_ARRAY_BUFFER, VBOs_v[i]);
         glBufferData(GL_ARRAY_BUFFER, 
                      scene.meshes[i].vertices.size() * sizeof(Vector3f), 
@@ -258,7 +257,7 @@ void hw_3_3(const std::vector<std::string> &params) {
                      GL_STATIC_DRAW); 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
-
+        // colors
         glBindBuffer(GL_ARRAY_BUFFER, VBOs_c[i]);
         glBufferData(GL_ARRAY_BUFFER, 
                      scene.meshes[i].vertex_colors.size() * sizeof(Vector3f), 
@@ -266,7 +265,7 @@ void hw_3_3(const std::vector<std::string> &params) {
                      GL_STATIC_DRAW);
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
-
+        // faces
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOs[i]);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
                      scene.meshes[i].faces.size() * sizeof(Vector3f), 
@@ -277,11 +276,29 @@ void hw_3_3(const std::vector<std::string> &params) {
         // glBindBuffer(GL_ARRAY_BUFFER, 0);
         // glBindVertexArray(0);
     }
-    
+
+    // pass projection matrix to shader
+    Matrix4x4f P =  Matrix4x4::identity(); // camera_to_clip
+    P(0, 0) = 1.0f / (a * s);
+    P(1, 1) = 1.0f / s;
+    P(2, 2) = -(z_far) / (z_far - z_near);
+    P(2, 3) = -(z_far * z_near) / (z_far - z_near);
+    P(3, 2) = -1;
+    P(3, 3) = 0;
+    ourShader.use();
+    ourShader.setMat4("projection", P);
+
     // render loop
     // -----------
     while(!glfwWindowShouldClose(window)) {
+        // per-frame time logic
+        // --------------------
+        float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
         // input
+        // -----
         processInput(window);
 
         // render
@@ -292,15 +309,20 @@ void hw_3_3(const std::vector<std::string> &params) {
         // activate shader
         ourShader.use();
 
+        // camera/view transformation
+        L(0, 3) = cameraPos.x;
+        L(1, 3) = cameraPos.y;
+        L(2, 3) = cameraPos.z;
+        Matrix4x4f V = inverse(L); // world_to_camera
+        ourShader.setMat4("view", V);
+
         for (int i = 0; i < n; i++) {
             Matrix4x4f M = scene.meshes[i].model_matrix; // object_to_world
             // update shader uniforms
             ourShader.setMat4("model", M);
-            ourShader.setMat4("view", V);
-            ourShader.setMat4("projection", P);
             // render mesh
             glBindVertexArray(VAOs[i]);
-            glDrawElements(GL_TRIANGLES, scene.meshes[i].faces.size() * sizeof(Vector3f), GL_UNSIGNED_INT, 0);   // glDrawArrays(GL_TRIANGLES, 0, 3);
+            glDrawElements(GL_TRIANGLES, scene.meshes[i].faces.size() * sizeof(Vector3f), GL_UNSIGNED_INT, 0);   
         }
 
         // glfw swap buffers and check IO events
@@ -310,6 +332,7 @@ void hw_3_3(const std::vector<std::string> &params) {
     // de-allocate all resources once they've outlived their purpose:
     glDeleteVertexArrays(VAOs.size(), VAOs.data());
     glDeleteBuffers(VBOs_v.size(), VBOs_v.data());
+    glDeleteBuffers(VBOs_c.size(), VBOs_c.data());
     glDeleteBuffers(EBOs.size(), EBOs.data());
 
     glfwTerminate();
@@ -325,4 +348,37 @@ void hw_3_4(const std::vector<std::string> &params) {
 
     Scene scene = parse_scene(params[0]);
     std::cout << scene << std::endl;
+}
+
+// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
+// ---------------------------------------------------------------------------------------------------------
+void processInputStatic(GLFWwindow *window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+}
+
+void processInput(GLFWwindow *window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+
+    float cameraSpeed = static_cast<float>(2.5 * deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        cameraPos -= cameraSpeed * cameraDir;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        cameraPos += cameraSpeed * cameraDir;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        cameraPos -= cameraSpeed * cameraRight;
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        cameraPos += cameraSpeed * cameraRight;
+}
+
+// glfw: whenever the window size changed (by OS or user resize) this callback function executes
+// ---------------------------------------------------------------------------------------------
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    // make sure the viewport matches the new window dimensions; note that width and 
+    // height will be significantly larger than specified on retina displays.
+    glViewport(0, 0, width, height);
 }
