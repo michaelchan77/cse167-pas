@@ -25,6 +25,9 @@ float z_far, z_near;
 float deltaTime = 0.0f;	// time between current frame and last frame
 float lastFrame = 0.0f;
 
+// lighting
+Vector3f lightDir = Vector3f{1.0, 1.0, 1.0}; // 3.4
+
 // ==================================================
 void hw_3_1(const std::vector<std::string> &params) {
     // HW 3.1: Open a window using GLFW
@@ -499,7 +502,7 @@ void hw_3_4(const std::vector<std::string> &params) {
     // load image, create texture and generate mipmaps
     int tex_width, tex_height, nrChannels;
     stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
-    unsigned char *data = stbi_load("../scenes/hw3/teapot.png", &tex_width, &tex_height, &nrChannels, 0);
+    unsigned char *data = stbi_load("../scenes/hw3/buddha-atlas.jpg", &tex_width, &tex_height, &nrChannels, 0);
     if (data) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, tex_width, tex_height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
@@ -537,7 +540,11 @@ void hw_3_4(const std::vector<std::string> &params) {
         ourShader.use();
 
         // lighting
-        ourShader.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
+        lightDir.x = cos(glfwGetTime()); // move light in circle
+        lightDir.z = sin(glfwGetTime());
+        lightDir.y = 0.0f;
+        ourShader.setVec3("lightColor", 1.0, 1.0, 1.0);
+        ourShader.setVec3("lightDir", lightDir);
         ourShader.setVec3("viewPos", cameraPos);
 
         // camera/view transformation
