@@ -1,6 +1,7 @@
 #include "hw3.h"
 #include "3rdparty/glad.h" // needs to be included before GLFW!
 #include "3rdparty/glfw/include/GLFW/glfw3.h"
+#include "3rdparty/stb_image.h"
 #include "hw3_scenes.h"
 #include "hw3_shader.h"
 
@@ -238,11 +239,12 @@ void hw_3_3(const std::vector<std::string> &params) {
     // ----------------------------------------------------------
     // generate VAO/VBO/EBOs for each mesh
     int n = scene.meshes.size();
-    std::vector<unsigned int> VAOs(n), VBOs_v(n), VBOs_c(n), EBOs(n);
+    std::vector<unsigned int> VAOs(n), VBOs_v(n), VBOs_c(n), VBOs_t(n), EBOs(n);
 
     glGenVertexArrays(VAOs.size(), VAOs.data());
     glGenBuffers(VBOs_v.size(), VBOs_v.data());
     glGenBuffers(VBOs_c.size(), VBOs_c.data());
+    glGenBuffers(VBOs_t.size(), VBOs_t.data());
     glGenBuffers(EBOs.size(), EBOs.data());
 
     for (int i = 0; i < n; i++) {
@@ -250,7 +252,7 @@ void hw_3_3(const std::vector<std::string> &params) {
         glBindVertexArray(VAOs[i]);
 
         // bind and set vertex buffers and configure vertex attributes
-        // vertices
+        // positions
         glBindBuffer(GL_ARRAY_BUFFER, VBOs_v[i]);
         glBufferData(GL_ARRAY_BUFFER, 
                      scene.meshes[i].vertices.size() * sizeof(Vector3f), 
@@ -266,17 +268,43 @@ void hw_3_3(const std::vector<std::string> &params) {
                      GL_STATIC_DRAW);
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(1);
+        // textures
+        glBindBuffer(GL_ARRAY_BUFFER, VBOs_t[i]);
+        glBufferData(GL_ARRAY_BUFFER, 
+                     scene.meshes[i].uvs.size() * sizeof(Vector2f), 
+                     scene.meshes[i].uvs.data(), 
+                     GL_STATIC_DRAW); 
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(2);
         // faces
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOs[i]);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
                      scene.meshes[i].faces.size() * sizeof(Vector3f), 
                      scene.meshes[i].faces.data(), 
                     GL_STATIC_DRAW);
-
-        // // unbind once registered (not strictly needed)
-        // glBindBuffer(GL_ARRAY_BUFFER, 0);
-        // glBindVertexArray(0);
     }
+
+    // load and create a texture 
+    // -------------------------
+    unsigned int texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture); // upcoming GL_TEXTURE_2D operations affect this texture object
+    // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); // GL_REPEAT: default wrapping method
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // load image, create texture and generate mipmaps
+    int tex_width, tex_height, nrChannels;
+    unsigned char *data = stbi_load("../scenes/hw3/teapot.png", &tex_width, &tex_height, &nrChannels, 0);
+    if (data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex_width, tex_height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    } else {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
 
     // pass projection matrix to shader
     Matrix4x4f P =  Matrix4x4::identity(); // camera_to_clip
@@ -293,21 +321,17 @@ void hw_3_3(const std::vector<std::string> &params) {
     // -----------
     while(!glfwWindowShouldClose(window)) {
         // per-frame time logic
-        // --------------------
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-
         // input
-        // -----
         processInput(window);
-
-        // render
-        // ------
+        
         glClearColor(bkg.x, bkg.y, bkg.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // activate shader
+        // bind texture and activate shader
+        glBindTexture(GL_TEXTURE_2D, texture);
         ourShader.use();
 
         // camera/view transformation
