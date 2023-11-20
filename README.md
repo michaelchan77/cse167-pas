@@ -2,6 +2,8 @@
 
 I implemented two bonuses: 3_3 textures and 3_4 lighting animation. Recorded scenes for both bonuses can be found in the hw_3_3_outputs folder.
 
+For 3_5, I designed a scene using the XYZ RGB Asian Dragon model from the Stanford 3D Scanning Repository. I downloaded the .ply from http://www.graphics.stanford.edu/data/3Dscanrep/.
+
 ---
 # balboa
 UCSD CSE 167 codebase
