@@ -1,0 +1,27 @@
+{
+    "camera":
+    {
+        "resolution": [800, 600],
+        "transform": [
+            {
+                "lookat":
+                {
+                    "position": [250, 150, 50],
+                    "target": [0, 0, 0],
+                    "up": [0, 0.5, -1]
+                }
+            }
+        ],
+        "s": 0.4,
+        "z_near": 0.1,
+        "z_far": 300
+    },
+    "background": [
+        0.059, 0.008, 0.008
+    ],
+    "objects": [
+        {
+            "filename": "dragon.ply"
+        }
+    ]
+}
