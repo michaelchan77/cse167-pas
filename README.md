@@ -1,18 +1,6 @@
-# HW 2 Submission 11/1/23
-2_1 Bonus: Triangle Clipping
-1. Clipping implemented in lines 50-115 of "src/hw2.cpp"
-2. Output images for 3 test scenes in "hw_2_outputs/hw_2_1_clipping*.png"
-3. Thought process/brainstorm included here:
-![CSE 167-11](https://github.com/michaelchan77/cse167-pas/assets/97709300/f2279df5-f0ed-42b2-95f8-8b1dac835b51)
+# HW 3 Submission 11/19/23
 
-
-2_4 Bonus: Teapot Animation
-1. Json files in "scenes/hw2/teapot_f*.json"
-2. Animation in "hw_2_outputs/hw_2_4_animated_teapot.gif"
-
-2_5 Design: Failed Person Scene
-1. Json and blender-exported ply in "scenes/hw2/failed_person*"
-2. Output image in "hw_2_outputs/hw_2_5_failed_person.png"
+I implemented two bonuses: 3_3 textures and 3_4 lighting animation. Recorded scenes for both bonuses can be found in the hw_3_3_outputs folder.
 
 ---
 # balboa
