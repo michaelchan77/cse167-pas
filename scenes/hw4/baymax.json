@@ -1,0 +1,27 @@
+{
+    "camera":
+    {
+        "resolution": [800, 600],
+        "transform": [
+            {
+                "lookat":
+                {
+                    "position": [-11.3, 7.32, 10.25],
+                    "target": [0, 0, 0],
+                    "up": [0, 1, 0]
+                }
+            }
+        ],
+        "s": 0.4,
+        "z_near": 0.1,
+        "z_far": 20
+    },
+    "background": [
+        1, 0.2, 0.2
+    ],
+    "objects": [
+        {
+            "filename": "baymax.ply"
+        }
+    ]
+}

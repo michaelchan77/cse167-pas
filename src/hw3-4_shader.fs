@@ -14,7 +14,7 @@ uniform vec3 viewPos;
 void main()
 {
     // choose to render with colors or textures
-    bool usingColors = false; 
+    bool usingColors = true; 
 
     // ambient
     float ambientStrength = 0.1;
